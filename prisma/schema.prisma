@@ -1,0 +1,12 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // btree_gist lets a GiST EXCLUDE constraint mix an equality column (staff_id)
+  // with a range column (tstzrange) — the anti-double-booking guard in Phase 4.
+  extensions = [btree_gist]
+}
