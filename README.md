@@ -42,7 +42,7 @@ npm run start:dev
 Following the phases in `plan.md`:
 
 - [x] **Phase 0** — Setup (NestJS, Docker Compose, Prisma, Swagger, health check)
-- [ ] Phase 1 — Auth + RBAC
+- [x] **Phase 1** — Auth + RBAC (argon2id, rotating refresh tokens, global guards)
 - [ ] Phase 2 — Shops, services, staff, working hours (multi-tenant)
 - [ ] Phase 3 — Available slots
 - [ ] Phase 4 — Bookings with concurrency-safe overlap prevention

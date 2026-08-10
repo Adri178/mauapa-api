@@ -10,3 +10,40 @@ datasource db {
   // with a range column (tstzrange) — the anti-double-booking guard in Phase 4.
   extensions = [btree_gist]
 }
+
+enum Role {
+  OWNER
+  STAFF
+  CUSTOMER
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+/// Refresh tokens are signed JWTs, but a hash of each one is persisted so it can
+/// be revoked — a signature alone is valid until it expires and cannot be taken
+/// back. Only the hash is stored: a leaked database row cannot be replayed.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
