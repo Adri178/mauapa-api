@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { RedisIoAdapter } from './queue/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -16,6 +17,13 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
+  const config = app.get(ConfigService);
+
+  // Broadcasts have to survive more than one instance; see RedisIoAdapter.
+  const redisAdapter = new RedisIoAdapter(app);
+  await redisAdapter.connect(config.getOrThrow<string>('REDIS_URL'));
+  app.useWebSocketAdapter(redisAdapter);
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('MauApa? API')
     .setDescription('Booking & queue API for small service businesses (barbershop/salon)')
@@ -27,10 +35,12 @@ async function bootstrap(): Promise<void> {
     swaggerOptions: { persistAuthorization: true },
   });
 
-  const port = app.get(ConfigService).getOrThrow<number>('PORT');
+  const port = config.getOrThrow<number>('PORT');
   await app.listen(port);
 
-  new Logger('Bootstrap').log(`API on http://localhost:${port} — Swagger at /docs`);
+  new Logger('Bootstrap').log(
+    `API on http://localhost:${port} — Swagger at /docs, live queue at /queue`,
+  );
 }
 
 void bootstrap();

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -14,6 +14,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BookingsService } from './bookings.service';
 import { BookingResponseDto } from './dto/booking-response.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { UpdateBookingStatusDto } from './dto/update-status.dto';
 
 @ApiTags('bookings')
 @ApiBearerAuth()
@@ -36,6 +37,25 @@ export class BookingsController {
     @Body() dto: CreateBookingDto,
   ): Promise<BookingResponseDto> {
     return this.bookings.create(shopId, user.id, dto);
+  }
+
+  @Patch(':bookingId/status')
+  @ApiOperation({
+    summary: 'Advance a booking through the queue',
+    description:
+      'For the shop’s owner or its staff. Broadcasts the new queue to everyone watching ' +
+      'this shop on the /queue websocket namespace.',
+  })
+  @ApiOkResponse({ type: BookingResponseDto })
+  @ApiBadRequestResponse({ description: 'Illegal transition for the booking’s current status' })
+  @ApiNotFoundResponse({ description: 'Unknown booking, or the caller does not run this shop' })
+  updateStatus(
+    @Param('shopId', ParseUUIDPipe) shopId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateBookingStatusDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookings.updateStatus(shopId, bookingId, dto.status, user);
   }
 }
 
@@ -61,5 +81,17 @@ export class MyBookingsController {
     @Param('bookingId', ParseUUIDPipe) bookingId: string,
   ): Promise<BookingResponseDto> {
     return this.bookings.findOwnOrThrow(bookingId, user.id);
+  }
+
+  @Patch(':bookingId/cancel')
+  @ApiOperation({ summary: 'Call off your own booking, freeing the slot' })
+  @ApiOkResponse({ type: BookingResponseDto })
+  @ApiBadRequestResponse({ description: 'The booking is already finished or cancelled' })
+  @ApiNotFoundResponse({ description: 'No such booking, or it belongs to someone else' })
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ): Promise<BookingResponseDto> {
+    return this.bookings.cancelOwn(bookingId, user.id);
   }
 }

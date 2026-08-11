@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Shop } from '@prisma/client';
+import { Role, type Shop } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateShopDto } from './dto/create-shop.dto';
 import type { UpdateShopDto } from './dto/update-shop.dto';
@@ -30,6 +31,31 @@ export class ShopsService {
     }
 
     return shop;
+  }
+
+  /**
+   * Whether this user may run a shop's day: its owner, or a staff member who
+   * works there. A customer never can.
+   *
+   * Throws 404 rather than 403 for the same reason findOwnedOrThrow does — an
+   * outsider learns nothing about which shop ids exist.
+   */
+  async assertCanManageOrThrow(shopId: string, user: AuthenticatedUser): Promise<Shop> {
+    if (user.role === Role.OWNER) {
+      return this.findOwnedOrThrow(shopId, user.id);
+    }
+
+    if (user.role === Role.STAFF) {
+      const shop = await this.prisma.shop.findFirst({
+        where: { id: shopId, staff: { some: { userId: user.id, active: true } } },
+      });
+
+      if (shop) {
+        return shop;
+      }
+    }
+
+    throw new NotFoundException('Shop not found');
   }
 
   async update(shopId: string, ownerId: string, dto: UpdateShopDto): Promise<Shop> {

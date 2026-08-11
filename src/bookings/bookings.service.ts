@@ -5,12 +5,17 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type Booking, type Service, type Shop } from '@prisma/client';
+import { BookingStatus, Prisma, type Booking, type Service, type Shop } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { SLOT_STEP_MINUTES } from '../availability/slot-calculator';
 import { dayOfWeekFor, partsInZone } from '../common/timezone';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueueGateway } from '../queue/queue.gateway';
+import { QueueService } from '../queue/queue.service';
+import { ShopsService } from '../shops/shops.service';
 import type { CreateBookingDto } from './dto/create-booking.dto';
 import { isDeadlock, isOverlapViolation } from './overlap-violation';
+import { allowedTransitions, canTransition } from './transitions';
 
 /**
  * A deadlock victim gets to try again. Two retries is plenty: each one waits for
@@ -25,7 +30,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shops: ShopsService,
+    private readonly queue: QueueGateway,
+    private readonly queueDates: QueueService,
+  ) {}
 
   /**
    * Creates a booking, or rejects it as taken.
@@ -75,7 +85,13 @@ export class BookingsService {
 
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.insertSerialisedByStaff(staff.id, data);
+        const booking = await this.insertSerialisedByStaff(staff.id, data);
+
+        // Only after the row is committed: a queue that shows a booking the
+        // database rejected would be worse than one that updates a moment late.
+        await this.queue.broadcast(shopId, this.queueDates.dateOf(shop.timezone, startTime));
+
+        return booking;
       } catch (error) {
         if (isOverlapViolation(error)) {
           // Expected under contention, so logged at debug rather than as a fault.
@@ -130,6 +146,70 @@ export class BookingsService {
 
       return tx.booking.create({ data });
     });
+  }
+
+  /**
+   * Moves a booking along its lifecycle, on behalf of the shop.
+   *
+   * Authorisation is the caller's; the transition rules are the domain's. Both
+   * have to pass, and the broadcast only happens once the change is committed —
+   * announcing a state the database never reached would be worse than silence.
+   */
+  async updateStatus(
+    shopId: string,
+    bookingId: string,
+    status: BookingStatus,
+    user: AuthenticatedUser,
+  ): Promise<Booking> {
+    const shop = await this.shops.assertCanManageOrThrow(shopId, user);
+
+    const booking = await this.prisma.booking.findFirst({ where: { id: bookingId, shopId } });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    this.assertTransitionAllowed(booking.status, status);
+
+    const updated = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status },
+    });
+
+    await this.queue.broadcast(shopId, this.queueDates.dateOf(shop.timezone, booking.startTime));
+
+    return updated;
+  }
+
+  /** A customer calling off their own booking. */
+  async cancelOwn(bookingId: string, customerId: string): Promise<Booking> {
+    const booking = await this.findOwnOrThrow(bookingId, customerId);
+
+    this.assertTransitionAllowed(booking.status, BookingStatus.CANCELLED);
+
+    const cancelled = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.CANCELLED },
+    });
+
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: booking.shopId } });
+    await this.queue.broadcast(
+      booking.shopId,
+      this.queueDates.dateOf(shop.timezone, booking.startTime),
+    );
+
+    return cancelled;
+  }
+
+  private assertTransitionAllowed(from: BookingStatus, to: BookingStatus): void {
+    if (!canTransition(from, to)) {
+      const allowed = allowedTransitions(from);
+
+      throw new BadRequestException(
+        allowed.length === 0
+          ? `A ${from} booking is final and cannot change status`
+          : `Cannot move a booking from ${from} to ${to}; allowed: ${allowed.join(', ')}`,
+      );
+    }
   }
 
   listForCustomer(customerId: string): Promise<Booking[]> {
