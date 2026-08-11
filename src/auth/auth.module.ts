@@ -24,6 +24,7 @@ import { TokenService } from './token.service';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
-  exports: [TokenService],
+  // StaffModule provisions staff logins and needs the same hashing parameters.
+  exports: [TokenService, PasswordService],
 })
 export class AuthModule {}

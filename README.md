@@ -43,7 +43,7 @@ Following the phases in `plan.md`:
 
 - [x] **Phase 0** — Setup (NestJS, Docker Compose, Prisma, Swagger, health check)
 - [x] **Phase 1** — Auth + RBAC (argon2id, rotating refresh tokens, global guards)
-- [ ] Phase 2 — Shops, services, staff, working hours (multi-tenant)
+- [x] **Phase 2** — Shops, services, staff, working hours (multi-tenant isolation)
 - [ ] Phase 3 — Available slots
 - [ ] Phase 4 — Bookings with concurrency-safe overlap prevention
 - [ ] Phase 5 — Real-time queue

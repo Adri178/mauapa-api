@@ -27,8 +27,86 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   refreshTokens RefreshToken[]
+  shops         Shop[]
+  staffProfile  Staff?
 
   @@map("users")
+}
+
+/// The tenant boundary. Every service, staff member, working-hours row, and
+/// (from Phase 4) booking hangs off a shop, and every query is scoped by it.
+model Shop {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @map("owner_id") @db.Uuid
+  name      String
+  address   String
+  /// IANA zone (e.g. Asia/Jakarta). Opening hours are wall-clock times; this is
+  /// what turns them into real instants when slots are computed in Phase 3.
+  timezone  String   @default("Asia/Jakarta")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner        User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  services     Service[]
+  staff        Staff[]
+  workingHours WorkingHours[]
+
+  @@index([ownerId])
+  @@map("shops")
+}
+
+model Service {
+  id              String   @id @default(uuid()) @db.Uuid
+  shopId          String   @map("shop_id") @db.Uuid
+  name            String
+  durationMinutes Int      @map("duration_minutes")
+  /// Whole rupiah. Integer, never a float — money and binary fractions do not mix.
+  price           Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, name])
+  @@index([shopId])
+  @@map("services")
+}
+
+model Staff {
+  id     String  @id @default(uuid()) @db.Uuid
+  shopId String  @map("shop_id") @db.Uuid
+  name   String
+  /// Optional link to a login. A staff member can exist as a schedulable
+  /// resource before (or without) ever having an account.
+  userId String? @unique @map("user_id") @db.Uuid
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  shop Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([shopId])
+  @@map("staff")
+}
+
+/// One row per open day. Minutes from midnight rather than a TIME column: slot
+/// arithmetic in Phase 3 is then plain integer maths, with no timezone
+/// ambiguity baked into the stored value. A day absent here is a closed day.
+model WorkingHours {
+  id          String @id @default(uuid()) @db.Uuid
+  shopId      String @map("shop_id") @db.Uuid
+  /// 0 = Sunday through 6 = Saturday, matching JavaScript's getDay().
+  dayOfWeek   Int    @map("day_of_week")
+  openMinute  Int    @map("open_minute")
+  closeMinute Int    @map("close_minute")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, dayOfWeek])
+  @@map("working_hours")
 }
 
 /// Refresh tokens are signed JWTs, but a hash of each one is persisted so it can
