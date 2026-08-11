@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { AvailabilityModule } from './availability/availability.module';
+import { BookingsModule } from './bookings/bookings.module';
 import { validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -24,6 +25,7 @@ import { WorkingHoursModule } from './working-hours/working-hours.module';
     StaffModule,
     WorkingHoursModule,
     AvailabilityModule,
+    BookingsModule,
     HealthModule,
   ],
 })
