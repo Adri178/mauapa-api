@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ThrottlerStorage } from '@nestjs/throttler';
 import type { ThrottlerStorageRecord } from '@nestjs/throttler/dist/throttler-storage-record.interface';
@@ -16,6 +16,9 @@ import Redis from 'ioredis';
  *
  * Returns: totalHits, timeToExpire, isBlocked, timeToBlockExpire.
  */
+/** Long enough for a container start, short enough not to delay boot. */
+const CONNECT_TIMEOUT_MS = 3000;
+
 const INCREMENT = `
 local hitsKey = KEYS[1]
 local blockKey = KEYS[2]
@@ -48,23 +51,80 @@ return { hits, timeToExpire, 0, 0 }
 `;
 
 @Injectable()
-export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy {
+export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisThrottlerStorage.name);
   private readonly redis: Redis;
+  private readonly enabled: boolean;
 
   constructor(config: ConfigService) {
+    this.enabled = config.getOrThrow<boolean>('THROTTLE_ENABLED');
     this.redis = new Redis(config.getOrThrow<string>('REDIS_URL'), {
       maxRetriesPerRequest: 2,
       // Counting requests must never become the reason a request fails.
       enableOfflineQueue: false,
-      // Connect on the first counted request rather than at boot. When rate
-      // limiting is switched off there is then no idle connection at all, and
-      // nothing to wait on at shutdown.
+      // Connecting is deferred to onModuleInit so that switching rate limiting
+      // off opens no connection at all.
       lazyConnect: true,
     });
 
     this.redis.on('error', (error: Error) => {
       this.logger.warn(`Redis unavailable for rate limiting: ${error.message}`);
+    });
+  }
+
+  /**
+   * Opens the connection before any request arrives.
+   *
+   * A lazy client left to connect on its first command does not work here:
+   * `enableOfflineQueue: false` rejects anything issued before the socket is
+   * writable, so the first request after every boot would go uncounted. Found
+   * by running the built image, not by the tests — they only assert that the
+   * limit eventually bites.
+   */
+  async onModuleInit(): Promise<void> {
+    if (!this.enabled) {
+      this.logger.log('Rate limiting is disabled; no Redis connection opened');
+      return;
+    }
+
+    try {
+      // Idempotent: the hook can fire more than once, and ioredis throws rather
+      // than no-ops if connect() is called on a client already on its way up.
+      if (this.redis.status === 'wait') {
+        await this.redis.connect();
+      } else if (this.redis.status !== 'ready') {
+        await this.whenReady(CONNECT_TIMEOUT_MS);
+      }
+    } catch (error) {
+      // Fail open, and say so loudly enough to be noticed in a deploy log.
+      this.logger.error(
+        `Could not connect to Redis; rate limiting will be degraded: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  /** Resolves once the client reports ready, or rejects on timeout. */
+  private whenReady(timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.redis.status === 'ready') {
+        resolve();
+        return;
+      }
+
+      const done = (settle: () => void) => () => {
+        clearTimeout(timer);
+        this.redis.off('ready', onReady);
+        settle();
+      };
+      const timer = setTimeout(
+        () => done(() => reject(new Error('timed out waiting for Redis')))(),
+        timeoutMs,
+      );
+      const onReady = () => done(resolve)();
+
+      this.redis.once('ready', onReady);
     });
   }
 

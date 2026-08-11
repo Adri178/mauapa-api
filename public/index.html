@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MauApa? — papan antrian</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --line: #262b36;
+        --text: #e6e9ef;
+        --muted: #949cad;
+        --accent: #4f9cf9;
+        --ok: #3fb950;
+        --warn: #d29922;
+        --done: #6e7681;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 24px;
+        background: var(--bg); color: var(--text);
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      }
+      main { max-width: 860px; margin: 0 auto; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      p.sub { color: var(--muted); margin: 0 0 24px; }
+      section {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: 10px; padding: 16px; margin-bottom: 16px;
+      }
+      label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+      input, button, select {
+        font: inherit; border-radius: 7px; border: 1px solid var(--line);
+        background: #0d0f14; color: var(--text); padding: 8px 10px;
+      }
+      input, select { width: 100%; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+      .row > div { flex: 1 1 200px; }
+      button {
+        background: var(--accent); color: #06101f; border: none;
+        font-weight: 600; cursor: pointer; padding: 9px 14px;
+      }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); }
+      th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+      td.pos { font-variant-numeric: tabular-nums; font-weight: 700; width: 48px; }
+      .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+      .BOOKED { color: var(--accent); }
+      .WAITING { color: var(--warn); }
+      .IN_PROGRESS { color: var(--ok); }
+      .DONE, .CANCELLED { color: var(--done); }
+      .mine { outline: 1px solid var(--accent); outline-offset: -1px; }
+      #status { font-size: 13px; color: var(--muted); }
+      #log { font: 12px/1.6 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; max-height: 160px; overflow: auto; }
+      .flash { animation: flash .9s ease-out; }
+      @keyframes flash { from { background: rgba(79,156,249,.22); } to { background: transparent; } }
+      .err { color: #f85149; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Papan antrian</h1>
+      <p class="sub">
+        Halaman kecil untuk melihat antrian bergerak secara langsung. Semua data datang lewat
+        websocket <code>/queue</code> — tidak ada polling, tidak ada refresh.
+      </p>
+
+      <section id="loginPanel">
+        <div class="row">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" value="budi@barbershop.demo" autocomplete="username" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" value="demo1234" autocomplete="current-password" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="shopId">Shop ID</label>
+            <input id="shopId" placeholder="uuid usaha" />
+          </div>
+          <div>
+            <label for="date">Tanggal</label>
+            <input id="date" type="date" />
+          </div>
+        </div>
+        <button id="connect">Masuk &amp; tonton</button>
+        <span id="status">belum tersambung</span>
+      </section>
+
+      <section id="queuePanel" hidden>
+        <div class="row" style="align-items: center; justify-content: space-between">
+          <strong id="queueTitle">Antrian</strong>
+          <button class="ghost" id="disconnect">Putus</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Layanan</th><th>Kapster</th><th>Mulai</th>
+              <th>Status</th><th>Pelanggan</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p id="empty" class="sub" hidden style="margin: 12px 0 0">Belum ada booking hari ini.</p>
+      </section>
+
+      <section>
+        <strong style="display: block; margin-bottom: 8px">Peristiwa</strong>
+        <div id="log">menunggu…</div>
+      </section>
+    </main>
+
+    <!-- Served by the Socket.IO server itself, so the page works offline. -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const api = location.origin;
+      let token = null;
+      let socket = null;
+      let role = null;
+      let shopId = null;
+      let watchedDate = null;
+
+      const log = (message, isError = false) => {
+        const line = document.createElement('div');
+        line.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
+        if (isError) line.className = 'err';
+        if ($('log').textContent === 'menunggu…') $('log').textContent = '';
+        $('log').prepend(line);
+      };
+
+      // Default the date box to today in the shop's zone (the seed uses Jakarta).
+      $('date').value = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date());
+
+      // A shop id can be handed over in the URL: ?shop=<uuid>
+      const fromUrl = new URLSearchParams(location.search).get('shop');
+      if (fromUrl) $('shopId').value = fromUrl;
+
+      async function call(path, options = {}) {
+        const res = await fetch(api + path, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(options.headers || {}),
+          },
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          const message = body?.message?.join?.(', ') || res.statusText;
+          throw new Error(`${res.status} ${message}`);
+        }
+        return body;
+      }
+
+      $('connect').addEventListener('click', async () => {
+        $('connect').disabled = true;
+        try {
+          const auth = await call('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email: $('email').value, password: $('password').value }),
+          });
+          token = auth.accessToken;
+          role = auth.user.role;
+          log(`masuk sebagai ${auth.user.name} (${role})`);
+
+          // An owner need not paste an id: take their first shop.
+          if (!$('shopId').value && role === 'OWNER') {
+            const shops = await call('/shops');
+            if (shops.length) {
+              $('shopId').value = shops[0].id;
+              log(`memakai usaha "${shops[0].name}"`);
+            }
+          }
+
+          shopId = $('shopId').value.trim();
+          watchedDate = $('date').value;
+          if (!shopId) throw new Error('Shop ID belum diisi');
+
+          openSocket();
+        } catch (error) {
+          log(error.message, true);
+          $('status').textContent = 'gagal';
+          $('connect').disabled = false;
+        }
+      });
+
+      $('disconnect').addEventListener('click', () => {
+        socket?.disconnect();
+        socket = null;
+        $('queuePanel').hidden = true;
+        $('loginPanel').hidden = false;
+        $('status').textContent = 'terputus';
+        $('connect').disabled = false;
+      });
+
+      function openSocket() {
+        socket = io(`${api}/queue`, { auth: { token }, transports: ['websocket'] });
+
+        socket.on('connect', () => {
+          $('status').textContent = 'tersambung';
+          $('loginPanel').hidden = true;
+          $('queuePanel').hidden = false;
+          $('queueTitle').textContent = `Antrian — ${watchedDate}`;
+          log('websocket tersambung');
+          socket.emit('queue.watch', { shopId, date: watchedDate }, (reply) => {
+            log(reply?.error ? `watch ditolak: ${reply.error}` : `menonton ${reply.watching}`);
+          });
+        });
+
+        socket.on('connect_error', (error) => {
+          log(`websocket ditolak: ${error.message}`, true);
+          $('status').textContent = 'ditolak';
+          $('connect').disabled = false;
+        });
+
+        socket.on('queue.updated', (queue) => {
+          // Rooms are per shop, so a payload for another date can arrive.
+          if (queue.date !== watchedDate) {
+            log(`abaikan pembaruan untuk ${queue.date}`);
+            return;
+          }
+          log(`queue.updated — ${queue.entries.length} booking`);
+          render(queue);
+        });
+      }
+
+      const NEXT = { BOOKED: 'WAITING', WAITING: 'IN_PROGRESS', IN_PROGRESS: 'DONE' };
+
+      function render(queue) {
+        const body = $('rows');
+        body.innerHTML = '';
+        $('empty').hidden = queue.entries.length > 0;
+
+        for (const entry of queue.entries) {
+          const tr = document.createElement('tr');
+          if (entry.isYours) tr.className = 'mine';
+
+          const time = new Date(entry.startTime).toLocaleTimeString('id-ID', {
+            timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit',
+          });
+
+          tr.innerHTML = `
+            <td class="pos">${entry.position ?? '–'}</td>
+            <td>${escape(entry.serviceName)}</td>
+            <td>${escape(entry.staffName)}</td>
+            <td>${time}</td>
+            <td><span class="badge ${entry.status}">${entry.status}</span></td>
+            <td>${entry.customerName ? escape(entry.customerName) : '<span class="sub">—</span>'}</td>
+            <td></td>`;
+
+          // Owners and staff get a button to advance the booking.
+          const next = NEXT[entry.status];
+          if (next && (role === 'OWNER' || role === 'STAFF')) {
+            const button = document.createElement('button');
+            button.className = 'ghost';
+            button.textContent = `→ ${next}`;
+            button.onclick = async () => {
+              button.disabled = true;
+              try {
+                await call(`/shops/${shopId}/bookings/${entry.bookingId}/status`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({ status: next }),
+                });
+                log(`status diubah ke ${next}`);
+              } catch (error) {
+                log(error.message, true);
+                button.disabled = false;
+              }
+            };
+            tr.lastElementChild.appendChild(button);
+          }
+
+          tr.classList.add('flash');
+          body.appendChild(tr);
+        }
+      }
+
+      const escape = (value) =>
+        String(value).replace(/[&<>"']/g, (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+        );
+    </script>
+  </body>
+</html>

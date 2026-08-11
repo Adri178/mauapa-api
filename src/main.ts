@@ -1,13 +1,20 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { trustProxy } from './app.setup';
 import { configureApp } from './app.setup';
 import { RedisIoAdapter } from './queue/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // A single static page for watching the queue move. Swagger documents every
+  // endpoint but cannot show a websocket, and that is the one thing worth
+  // seeing with your own eyes.
+  app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/demo' });
 
   // Behind a load balancer the client address arrives in a header; rate
   // limiting counts the caller, not the proxy in front of them.
