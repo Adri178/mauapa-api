@@ -22,6 +22,15 @@ const envSchema = z.object({
     .string()
     .regex(DURATION, 'must be a duration like 15m, 3600s, or 7d')
     .default('7d'),
+
+  // Global fallback rate limit. Tighter per-route limits live in
+  // throttling.constants.ts, where they sit next to the routes they protect.
+  THROTTLE_ENABLED: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .transform((value) => value === true || value === 'true')
+    .default(true),
+  THROTTLE_LIMIT: z.coerce.number().int().positive().default(120),
+  THROTTLE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
 });
 
 export type Env = z.infer<typeof envSchema>;

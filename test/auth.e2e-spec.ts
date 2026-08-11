@@ -1,9 +1,10 @@
-import { Controller, Get, INestApplication, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Role } from '@prisma/client';
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/app.setup';
 import { Roles } from '../src/auth/decorators/roles.decorator';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -65,9 +66,7 @@ describe('Auth (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-    );
+    configureApp(app);
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -146,7 +145,8 @@ describe('Auth (e2e)', () => {
     it('gives the same 401 for an unknown email, revealing nothing', async () => {
       const res = await login(emailFor('ghost'), PASSWORD).expect(401);
 
-      expect((res.body as { message: string }).message).toBe('Invalid email or password');
+      // The filter normalises every error to the same shape, message included.
+      expect((res.body as { message: string[] }).message).toEqual(['Invalid email or password']);
     });
   });
 

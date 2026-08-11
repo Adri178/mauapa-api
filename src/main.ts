@@ -1,21 +1,19 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { trustProxy } from './app.setup';
+import { configureApp } from './app.setup';
 import { RedisIoAdapter } from './queue/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: true },
-    }),
-  );
+  // Behind a load balancer the client address arrives in a header; rate
+  // limiting counts the caller, not the proxy in front of them.
+  trustProxy(app, 1);
+
+  configureApp(app);
 
   const config = app.get(ConfigService);
 
@@ -23,17 +21,6 @@ async function bootstrap(): Promise<void> {
   const redisAdapter = new RedisIoAdapter(app);
   await redisAdapter.connect(config.getOrThrow<string>('REDIS_URL'));
   app.useWebSocketAdapter(redisAdapter);
-
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('MauApa? API')
-    .setDescription('Booking & queue API for small service businesses (barbershop/salon)')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig), {
-    swaggerOptions: { persistAuthorization: true },
-  });
 
   const port = config.getOrThrow<number>('PORT');
   await app.listen(port);

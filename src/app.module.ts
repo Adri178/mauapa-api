@@ -9,6 +9,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { ServicesModule } from './services/services.module';
 import { ShopsModule } from './shops/shops.module';
+import { ThrottlingModule } from './throttling/throttling.module';
 import { StaffModule } from './staff/staff.module';
 import { WorkingHoursModule } from './working-hours/working-hours.module';
 
@@ -20,6 +21,7 @@ import { WorkingHoursModule } from './working-hours/working-hours.module';
       validate: validateEnv,
     }),
     PrismaModule,
+    ThrottlingModule,
     AuthModule,
     ShopsModule,
     ServicesModule,

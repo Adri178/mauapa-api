@@ -6,8 +6,11 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { AUTH_THROTTLE, REGISTER_THROTTLE } from '../throttling/throttling.constants';
 import { AuthService } from './auth.service';
 import type { TokenPair } from './auth.types';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -25,6 +28,8 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @Throttle(REGISTER_THROTTLE)
+  @ApiTooManyRequestsResponse({ description: 'Too many sign-up attempts' })
   @ApiOperation({ summary: 'Create an account as an owner or a customer' })
   @ApiCreatedResponse({ type: AuthResultDto })
   @ApiConflictResponse({ description: 'Email already registered' })
@@ -34,6 +39,8 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @Throttle(AUTH_THROTTLE)
+  @ApiTooManyRequestsResponse({ description: 'Too many login attempts' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Exchange credentials for a token pair' })
   @ApiOkResponse({ type: AuthResultDto })
@@ -44,6 +51,8 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
+  @Throttle(AUTH_THROTTLE)
+  @ApiTooManyRequestsResponse({ description: 'Too many refresh attempts' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate a refresh token for a fresh pair' })
   @ApiOkResponse({ type: AuthTokensDto })

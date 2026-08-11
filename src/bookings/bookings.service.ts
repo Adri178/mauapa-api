@@ -8,12 +8,14 @@ import {
 import { BookingStatus, Prisma, type Booking, type Service, type Shop } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { SLOT_STEP_MINUTES } from '../availability/slot-calculator';
-import { dayOfWeekFor, partsInZone } from '../common/timezone';
+import { paginate, type PageDto } from '../common/pagination.dto';
+import { dayOfWeekFor, partsInZone, wallClockToInstant } from '../common/timezone';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueGateway } from '../queue/queue.gateway';
 import { QueueService } from '../queue/queue.service';
 import { ShopsService } from '../shops/shops.service';
 import type { CreateBookingDto } from './dto/create-booking.dto';
+import type { ListBookingsQueryDto, ListMyBookingsQueryDto } from './dto/list-bookings.dto';
 import { isDeadlock, isOverlapViolation } from './overlap-violation';
 import { allowedTransitions, canTransition } from './transitions';
 
@@ -212,11 +214,74 @@ export class BookingsService {
     }
   }
 
-  listForCustomer(customerId: string): Promise<Booking[]> {
-    return this.prisma.booking.findMany({
-      where: { customerId },
-      orderBy: { startTime: 'desc' },
-    });
+  async listForCustomer(
+    customerId: string,
+    query: ListMyBookingsQueryDto,
+  ): Promise<PageDto<Booking>> {
+    const where = { customerId, ...(query.status ? { status: query.status } : {}) };
+
+    // One round trip for the rows and one for the count, issued together — the
+    // total is what tells a client whether another page exists.
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.booking.findMany({
+        where,
+        orderBy: { startTime: query.order },
+        skip: query.skip,
+        take: query.limit,
+      }),
+      this.prisma.booking.count({ where }),
+    ]);
+
+    return paginate(data, total, query);
+  }
+
+  /** The operational view: everything on the shop's books, filtered. */
+  async listForShop(
+    shopId: string,
+    user: AuthenticatedUser,
+    query: ListBookingsQueryDto,
+  ): Promise<PageDto<Booking>> {
+    const shop = await this.shops.assertCanManageOrThrow(shopId, user);
+
+    const where: Prisma.BookingWhereInput = {
+      shopId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.staffId ? { staffId: query.staffId } : {}),
+      ...(query.date ? this.dayRange(shop.timezone, query.date) : {}),
+    };
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.booking.findMany({
+        where,
+        orderBy: { startTime: query.order },
+        skip: query.skip,
+        take: query.limit,
+      }),
+      this.prisma.booking.count({ where }),
+    ]);
+
+    return paginate(data, total, query);
+  }
+
+  /** Turns a calendar date in the shop's zone into an instant range. */
+  private dayRange(timezone: string, date: string): Prisma.BookingWhereInput {
+    const [year, month, day] = date.split('-').map(Number);
+    const asUtc = new Date(Date.UTC(year, month - 1, day));
+
+    if (
+      asUtc.getUTCFullYear() !== year ||
+      asUtc.getUTCMonth() !== month - 1 ||
+      asUtc.getUTCDate() !== day
+    ) {
+      throw new BadRequestException(`${date} is not a real calendar date`);
+    }
+
+    return {
+      startTime: {
+        gte: wallClockToInstant(timezone, year, month, day, 0),
+        lt: wallClockToInstant(timezone, year, month, day, 24 * 60),
+      },
+    };
   }
 
   async findOwnOrThrow(bookingId: string, customerId: string): Promise<Booking> {

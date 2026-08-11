@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -8,12 +8,16 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BookingsService } from './bookings.service';
-import { BookingResponseDto } from './dto/booking-response.dto';
+import { BOOKING_THROTTLE } from '../throttling/throttling.constants';
+import { BookingResponseDto, PaginatedBookingsDto } from './dto/booking-response.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { ListBookingsQueryDto, ListMyBookingsQueryDto } from './dto/list-bookings.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';
 
 @ApiTags('bookings')
@@ -23,7 +27,9 @@ export class BookingsController {
   constructor(private readonly bookings: BookingsService) {}
 
   @Post()
+  @Throttle(BOOKING_THROTTLE)
   @ApiOperation({ summary: 'Book a slot; the caller is the customer' })
+  @ApiTooManyRequestsResponse({ description: 'Too many booking attempts' })
   @ApiCreatedResponse({ type: BookingResponseDto })
   @ApiConflictResponse({
     description:
@@ -37,6 +43,21 @@ export class BookingsController {
     @Body() dto: CreateBookingDto,
   ): Promise<BookingResponseDto> {
     return this.bookings.create(shopId, user.id, dto);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'The shop’s bookings, filtered and paginated',
+    description: 'For the shop’s owner or its staff — the operational day view.',
+  })
+  @ApiOkResponse({ type: PaginatedBookingsDto })
+  @ApiNotFoundResponse({ description: 'Unknown shop, or the caller does not run it' })
+  list(
+    @Param('shopId', ParseUUIDPipe) shopId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListBookingsQueryDto,
+  ): Promise<PaginatedBookingsDto> {
+    return this.bookings.listForShop(shopId, user, query);
   }
 
   @Patch(':bookingId/status')
@@ -67,9 +88,12 @@ export class MyBookingsController {
 
   @Get('me')
   @ApiOperation({ summary: "The caller's own bookings, newest first" })
-  @ApiOkResponse({ type: [BookingResponseDto] })
-  listMine(@CurrentUser() user: AuthenticatedUser): Promise<BookingResponseDto[]> {
-    return this.bookings.listForCustomer(user.id);
+  @ApiOkResponse({ type: PaginatedBookingsDto })
+  listMine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListMyBookingsQueryDto,
+  ): Promise<PaginatedBookingsDto> {
+    return this.bookings.listForCustomer(user.id, query);
   }
 
   @Get(':bookingId')

@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { BookingStatus, Role } from '@prisma/client';
 import type { AddressInfo } from 'node:net';
@@ -6,6 +6,7 @@ import type { Server } from 'node:http';
 import { io, type Socket } from 'socket.io-client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { QUEUE_UPDATED } from '../src/queue/queue.gateway';
 
@@ -66,9 +67,19 @@ describe('Real-time queue (e2e)', () => {
     sockets.push(socket);
 
     await new Promise<void>((resolve, reject) => {
-      socket.once('connect', resolve);
-      socket.once('connect_error', reject);
-      setTimeout(() => reject(new Error('socket did not connect in time')), 5000);
+      // Cleared on settle: a stray 5-second timer per connection keeps the Node
+      // event loop alive and stops Jest exiting after the run.
+      const timer = setTimeout(() => reject(new Error('socket did not connect in time')), 5000);
+      const settle = (finish: () => void) => () => {
+        clearTimeout(timer);
+        finish();
+      };
+
+      socket.once('connect', settle(resolve));
+      socket.once(
+        'connect_error',
+        settle(() => reject(new Error('socket connection refused'))),
+      );
     });
 
     return socket;
@@ -95,6 +106,29 @@ describe('Real-time queue (e2e)', () => {
     return initial;
   };
 
+  /**
+   * Resolves when the server refuses the handshake, whether it does so with a
+   * connect_error or by dropping the socket. Rejects if the client connects.
+   */
+  const expectHandshakeRefused = (socket: Socket): Promise<void> =>
+    new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('the server neither accepted nor refused')),
+        5000,
+      );
+      const settle = (finish: () => void) => () => {
+        clearTimeout(timer);
+        finish();
+      };
+
+      socket.once(
+        'connect',
+        settle(() => reject(new Error('the server accepted the connection'))),
+      );
+      socket.once('disconnect', settle(resolve));
+      socket.once('connect_error', settle(resolve));
+    });
+
   const book = (token: string, startTime: string) =>
     http()
       .post(`/shops/${shopId}/bookings`)
@@ -108,9 +142,7 @@ describe('Real-time queue (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-    );
+    configureApp(app);
     // A real port, because these tests speak websocket rather than HTTP.
     await app.listen(0);
     prisma = app.get(PrismaService);
@@ -316,14 +348,7 @@ describe('Real-time queue (e2e)', () => {
       const socket = io(`${baseUrl}/queue`, { transports: ['websocket'], forceNew: true });
       sockets.push(socket);
 
-      await expect(
-        new Promise<void>((resolve, reject) => {
-          socket.once('connect', () => reject(new Error('connected without a token')));
-          socket.once('disconnect', () => resolve());
-          socket.once('connect_error', () => resolve());
-          setTimeout(() => reject(new Error('nothing happened')), 5000);
-        }),
-      ).resolves.toBeUndefined();
+      await expect(expectHandshakeRefused(socket)).resolves.toBeUndefined();
     });
 
     it('refuses a garbage token', async () => {
@@ -334,14 +359,7 @@ describe('Real-time queue (e2e)', () => {
       });
       sockets.push(socket);
 
-      await expect(
-        new Promise<void>((resolve, reject) => {
-          socket.once('connect', () => reject(new Error('connected with a bad token')));
-          socket.once('disconnect', () => resolve());
-          socket.once('connect_error', () => resolve());
-          setTimeout(() => reject(new Error('nothing happened')), 5000);
-        }),
-      ).resolves.toBeUndefined();
+      await expect(expectHandshakeRefused(socket)).resolves.toBeUndefined();
     });
 
     it('rejects a watch with no shopId', async () => {

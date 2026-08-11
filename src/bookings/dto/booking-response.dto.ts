@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BookingStatus } from '@prisma/client';
+import { PageMetaDto } from '../../common/pagination.dto';
 
 export class BookingResponseDto {
   @ApiProperty({ format: 'uuid' })
@@ -28,4 +29,12 @@ export class BookingResponseDto {
 
   @ApiProperty()
   createdAt!: Date;
+}
+
+export class PaginatedBookingsDto {
+  @ApiProperty({ type: [BookingResponseDto] })
+  data!: BookingResponseDto[];
+
+  @ApiProperty({ type: PageMetaDto })
+  meta!: PageMetaDto;
 }

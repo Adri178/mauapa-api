@@ -47,5 +47,5 @@ Following the phases in `plan.md`:
 - [x] **Phase 3** — Available slots (opening hours + duration + existing bookings)
 - [x] **Phase 4** — Bookings with concurrency-safe overlap prevention
 - [x] **Phase 5** — Real-time queue (Socket.IO, room per shop, Redis pub/sub)
-- [ ] Phase 6 — Rate limiting, tests, docs
+- [x] **Phase 6** — Rate limiting, pagination, consistent errors, full Swagger
 - [ ] Phase 7 — Deploy

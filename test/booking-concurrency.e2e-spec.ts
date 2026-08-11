@@ -1,9 +1,10 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { BookingStatus, Role } from '@prisma/client';
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 interface Identified {
@@ -45,9 +46,7 @@ describe('Bookings and double-booking prevention (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-    );
+    configureApp(app);
     await app.init();
     prisma = app.get(PrismaService);
 
@@ -323,7 +322,7 @@ describe('Bookings and double-booking prevention (e2e)', () => {
       await bookAs(customers[1], '2027-06-16T02:30:00.000Z').expect(201);
 
       const res = await http().get('/bookings/me').set(auth(customers[0])).expect(200);
-      const mine = res.body as Array<{ startTime: string }>;
+      const mine = (res.body as { data: Array<{ startTime: string }> }).data;
 
       expect(mine).toHaveLength(1);
       expect(mine[0].startTime).toBe(NINE_AM);
