@@ -17,6 +17,14 @@ enum Role {
   CUSTOMER
 }
 
+enum BookingStatus {
+  BOOKED
+  WAITING
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
@@ -29,6 +37,7 @@ model User {
   refreshTokens RefreshToken[]
   shops         Shop[]
   staffProfile  Staff?
+  bookings      Booking[]
 
   @@map("users")
 }
@@ -50,6 +59,7 @@ model Shop {
   services     Service[]
   staff        Staff[]
   workingHours WorkingHours[]
+  bookings     Booking[]
 
   @@index([ownerId])
   @@map("shops")
@@ -66,7 +76,8 @@ model Service {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  bookings Booking[]
 
   @@unique([shopId, name])
   @@index([shopId])
@@ -85,8 +96,9 @@ model Staff {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  shop Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bookings Booking[]
 
   @@index([shopId])
   @@map("staff")
@@ -107,6 +119,38 @@ model WorkingHours {
 
   @@unique([shopId, dayOfWeek])
   @@map("working_hours")
+}
+
+/// Times are stored as absolute instants (timestamptz). Wall-clock times belong
+/// to a shop's timezone; storing instants keeps comparisons and overlap checks
+/// unambiguous no matter where the caller is.
+///
+/// The concurrency guard that makes two overlapping bookings impossible is a
+/// GiST EXCLUDE constraint over (staff_id, tstzrange(start_time, end_time)).
+/// Prisma cannot express it, so Phase 4 adds it as raw SQL in a migration.
+model Booking {
+  id         String        @id @default(uuid()) @db.Uuid
+  shopId     String        @map("shop_id") @db.Uuid
+  serviceId  String        @map("service_id") @db.Uuid
+  staffId    String        @map("staff_id") @db.Uuid
+  customerId String        @map("customer_id") @db.Uuid
+  startTime  DateTime      @map("start_time") @db.Timestamptz(3)
+  endTime    DateTime      @map("end_time") @db.Timestamptz(3)
+  status     BookingStatus @default(BOOKED)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  shop     Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  service  Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  staff    Staff   @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  customer User    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  /// Drives the availability lookup: "which bookings does this staff member
+  /// already have on this day?"
+  @@index([staffId, startTime])
+  @@index([shopId, startTime])
+  @@index([customerId, startTime])
+  @@map("bookings")
 }
 
 /// Refresh tokens are signed JWTs, but a hash of each one is persisted so it can
