@@ -16,15 +16,15 @@ Swagger · Jest · Docker · GitHub Actions
 | --- | --- |
 | **Landing page** | **https://mauapa-api.onrender.com** |
 | Swagger | https://mauapa-api.onrender.com/docs |
-| Queue board | https://mauapa-api.onrender.com/board |
+| App | https://mauapa-api.onrender.com/app |
 | Health | https://mauapa-api.onrender.com/health |
 
 Registration is open, so the whole flow can be tried from Swagger in a couple of
 minutes: `POST /auth/register` as an `OWNER`, **Authorize** with the
 `accessToken`, then create a shop, a service, a staff member and some working
 hours, ask `/availability` what is free, and book it. Or skip all of that and
-let `/board` build a sample shop for you. Open it in two browser tabs to watch
-the queue move between them.
+use the app at `/app`, which walks the same flow with screens. Open a shop’s
+queue in two browser tabs to watch it move between them.
 
 > Hosted on a free tier that sleeps after 15 minutes of inactivity. The first
 > request after a quiet spell takes about a minute while the container wakes —
@@ -363,7 +363,7 @@ npm run start:dev
 | --- | --- |
 | Landing page | http://localhost:3000 |
 | Swagger | http://localhost:3000/docs |
-| Queue board | http://localhost:3000/board |
+| App | http://localhost:3000/app |
 | Health | http://localhost:3000/health |
 
 Generate secrets with:
