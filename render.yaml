@@ -1,11 +1,17 @@
-# Render blueprint. Point Render at this repository and it provisions the API
-# and its Postgres from this file.
+# Render blueprint — the API container only.
 #
-# Redis is NOT declared here: Render's managed Redis ("Key Value") is created
-# separately, and its connection string pasted into REDIS_URL below. Declaring
-# something that may not provision cleanly would be worse than saying so.
+# Postgres and Redis are deliberately NOT declared here. Hosts that provision
+# databases for you attach a volume to each, and volumes are what push a free
+# plan onto a paid one. Pointing at managed databases elsewhere keeps the whole
+# stack on permanent free tiers with the architecture intact — Redis included,
+# which matters because it is what makes broadcasts and rate limits correct
+# across more than one instance.
 #
-# See README, "Deploying", for the manual steps and for Railway.
+# DATABASE_URL → a Neon project (neon.com)
+# REDIS_URL    → a Redis Cloud database (redis.io)
+#
+# Both are `sync: false`, meaning Render prompts for them at deploy time and
+# never stores them in this file. See README, "Deploying".
 
 services:
   - type: web
@@ -13,24 +19,21 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
+    # Reports database connectivity, not merely that the process is alive.
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
 
-      # Wired automatically from the database declared below.
+      # PORT is intentionally absent: Render injects it, and hard-coding one
+      # would leave the app listening somewhere Render is not looking.
+
       - key: DATABASE_URL
-        fromDatabase:
-          name: mauapa-postgres
-          property: connectionString
-
-      # Paste the connection string of your Render Key Value instance.
+        sync: false
       - key: REDIS_URL
         sync: false
 
-      # Generated once by Render and then held; never commit these.
+      # Generated once by Render and then held; never committed.
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -46,9 +49,3 @@ services:
         value: 120
       - key: THROTTLE_TTL_SECONDS
         value: 60
-
-databases:
-  - name: mauapa-postgres
-    databaseName: mauapa
-    user: mauapa
-    plan: free
