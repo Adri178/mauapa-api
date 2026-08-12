@@ -11,10 +11,10 @@ import { RedisIoAdapter } from './queue/redis-io.adapter';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // A single static page for watching the queue move. Swagger documents every
-  // endpoint but cannot show a websocket, and that is the one thing worth
-  // seeing with your own eyes.
-  app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/demo' });
+  // The landing page at /, the live queue board at /board. Serving from the
+  // root is safe because Express only answers for paths that match a file —
+  // /shops and friends fall through to the router untouched.
+  app.useStaticAssets(join(process.cwd(), 'public'), { extensions: ['html'] });
 
   // Behind a load balancer the client address arrives in a header; rate
   // limiting counts the caller, not the proxy in front of them.

@@ -3,9 +3,9 @@
 A backend for small service businesses — barbershops, salons — to take online
 bookings and run a live queue, replacing the WhatsApp-and-notebook method.
 
-It is deliberately backend-only. The interesting parts are concurrency,
-multi-tenant isolation, and real-time updates; the UI is Swagger plus one small
-page for watching the queue move.
+The interesting parts are backend: concurrency, multi-tenant isolation, and
+real-time updates. The front end is deliberately thin — a landing page that
+explains the idea, a queue board that talks to the real API, and Swagger.
 
 **Stack** · NestJS · PostgreSQL + Prisma · Redis · JWT + RBAC · Socket.IO ·
 Swagger · Jest · Docker · GitHub Actions
@@ -14,15 +14,17 @@ Swagger · Jest · Docker · GitHub Actions
 
 | | |
 | --- | --- |
-| **Swagger** | **https://mauapa-api.onrender.com/docs** |
-| Queue board | https://mauapa-api.onrender.com/demo |
+| **Landing page** | **https://mauapa-api.onrender.com** |
+| Swagger | https://mauapa-api.onrender.com/docs |
+| Queue board | https://mauapa-api.onrender.com/board |
 | Health | https://mauapa-api.onrender.com/health |
 
 Registration is open, so the whole flow can be tried from Swagger in a couple of
 minutes: `POST /auth/register` as an `OWNER`, **Authorize** with the
 `accessToken`, then create a shop, a service, a staff member and some working
-hours, ask `/availability` what is free, and book it. Open `/demo` in two
-browser tabs to watch the queue move between them.
+hours, ask `/availability` what is free, and book it. Or skip all of that and
+let `/board` build a sample shop for you. Open it in two browser tabs to watch
+the queue move between them.
 
 > Hosted on a free tier that sleeps after 15 minutes of inactivity. The first
 > request after a quiet spell takes about a minute while the container wakes —
@@ -359,8 +361,9 @@ npm run start:dev
 
 | | |
 | --- | --- |
+| Landing page | http://localhost:3000 |
 | Swagger | http://localhost:3000/docs |
-| Queue board | http://localhost:3000/demo |
+| Queue board | http://localhost:3000/board |
 | Health | http://localhost:3000/health |
 
 Generate secrets with:

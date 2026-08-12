@@ -3,508 +3,986 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MauApa? — papan antrian</title>
+    <title>MauApa? — booking &amp; antrian untuk usaha jasa</title>
+    <meta
+      name="description"
+      content="Pelanggan memilih layanan, kapster, dan jam yang benar-benar kosong dari satu link. Antrian bergerak sendiri di layar mereka, dan slot yang sama tidak pernah bisa terisi dua kali."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
     <style>
+      /* ── tokens ──────────────────────────────────────────────────────────
+         The Nocturne design system ships dark; this page overrides its tokens
+         with the light teal-and-amber set the design specifies. Component
+         classes below (.btn, .card, .tag, .pill) follow Nocturne's contract so
+         the two stay swappable.                                             */
       :root {
-        --bg: #0f1115;
-        --panel: #171a21;
-        --line: #262b36;
-        --text: #e6e9ef;
-        --muted: #949cad;
-        --accent: #4f9cf9;
-        --ok: #3fb950;
-        --warn: #d29922;
-        --done: #6e7681;
-        --err: #f85149;
+        --color-bg: #fafafa;
+        --color-surface: #ffffff;
+        --color-text: #17302e;
+        --color-divider: color-mix(in srgb, #17302e 12%, transparent);
+
+        --color-accent: #007a78;
+        --color-accent-100: #eaf6f5;
+        --color-accent-200: #cdeae8;
+        --color-accent-300: #9fd6d3;
+        --color-accent-500: #1a9895;
+        --color-accent-600: #007a78;
+        --color-accent-700: #06615f;
+        --color-accent-800: #0a4746;
+
+        --color-accent-2: #ffb000;
+        --color-accent-2-200: #ffe7b8;
+        --color-accent-2-400: #ffc247;
+        --color-accent-2-600: #d99400;
+        --color-accent-2-800: #7a5300;
+
+        --color-muted: #566a68;
+        --color-faint: #6f8280;
+        --color-ghost: #a9b7b6;
+        --color-well: #f2f5f4;
+
+        --shadow-sm: 0 0 0 1px #e2ecea;
+        --shadow-md: 0 0 0 1px #d8e6e4, 0 6px 18px rgba(23, 48, 46, 0.08);
+        --shadow-lg: 0 0 0 1px #c9d6d5, 0 16px 40px rgba(23, 48, 46, 0.14);
+
+        --radius-md: 8px;
+        --radius-lg: 14px;
+
+        --font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+        --mono: ui-monospace, "Cascadia Mono", SFMono-Regular, Menlo, monospace;
+
+        --shell: 1240px;
+        --gutter: clamp(20px, 5vw, 64px);
       }
-      * { box-sizing: border-box; }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+
       body {
-        margin: 0; padding: 24px;
-        background: var(--bg); color: var(--text);
-        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        margin: 0;
+        font-family: var(--font);
+        font-size: 15px;
+        line-height: 1.55;
+        color: var(--color-text);
+        text-wrap: pretty;
+        overflow-x: hidden;
+        background:
+          radial-gradient(1200px 720px at 84% -180px,
+            color-mix(in srgb, var(--color-accent-200) 75%, transparent), transparent 62%),
+          radial-gradient(1100px 800px at -12% 82%,
+            color-mix(in srgb, #e4e7f5 60%, transparent), transparent 58%),
+          var(--color-bg);
       }
-      main { max-width: 880px; margin: 0 auto; }
-      h1 { font-size: 20px; margin: 0 0 4px; }
-      p.sub { color: var(--muted); margin: 0 0 20px; }
-      section {
-        background: var(--panel); border: 1px solid var(--line);
-        border-radius: 10px; padding: 16px; margin-bottom: 16px;
+
+      h1, h2, h3 { font-weight: 500; letter-spacing: -0.015em; margin: 0; text-wrap: balance; }
+      p { margin: 0; }
+      a { color: inherit; }
+      :focus { outline: none; }
+      :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+      ::selection { background: color-mix(in srgb, var(--color-accent) 26%, transparent); }
+
+      .shell { max-width: var(--shell); margin: 0 auto; padding-inline: var(--gutter); }
+
+      /* ── controls (Nocturne contract) ── */
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        font-family: var(--font); font-weight: 500; font-size: 14px; line-height: 1.2;
+        color: var(--color-text); background: transparent;
+        border: 1px solid transparent; border-radius: var(--radius-md);
+        padding: 6px 10px; cursor: pointer; text-decoration: none;
+        white-space: nowrap;
       }
-      label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-      input, button, select {
-        font: inherit; border-radius: 7px; border: 1px solid var(--line);
-        background: #0d0f14; color: var(--text); padding: 8px 10px;
+      .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      .btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
+      .btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+      .btn-secondary { border-color: var(--color-divider); }
+      .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+      .btn-ghost { color: var(--color-accent); padding-inline: 4px; }
+      .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+      .btn-order {
+        background: var(--color-accent-2); border-color: var(--color-accent-2); color: #4d3400;
       }
-      input, select { width: 100%; }
-      .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-      .row > div { flex: 1 1 200px; }
-      button {
-        background: var(--accent); color: #06101f; border: none;
-        font-weight: 600; cursor: pointer; padding: 9px 14px;
+      .btn-order:hover:not(:disabled) { background: var(--color-accent-2-400); }
+      .btn-order:active:not(:disabled) { background: var(--color-accent-2-600); }
+      .btn-block { width: 100%; }
+
+      .card {
+        display: flex; flex-direction: column; gap: 8px;
+        padding: 8px; border-radius: var(--radius-md); background: var(--color-surface);
       }
-      button:disabled { opacity: .5; cursor: not-allowed; }
-      button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
-      .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-      .tabs button { background: transparent; border: 1px solid var(--line); color: var(--muted); font-weight: 500; }
-      .tabs button[aria-selected="true"] { background: var(--accent); color: #06101f; border-color: var(--accent); font-weight: 600; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); }
-      th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
-      td.pos { font-variant-numeric: tabular-nums; font-weight: 700; width: 48px; }
-      .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
-      .BOOKED { color: var(--accent); }
-      .WAITING { color: var(--warn); }
-      .IN_PROGRESS { color: var(--ok); }
-      .DONE, .CANCELLED { color: var(--done); }
-      .mine { outline: 1px solid var(--accent); outline-offset: -1px; }
-      #status { font-size: 13px; color: var(--muted); }
-      #log { font: 12px/1.6 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; max-height: 150px; overflow: auto; }
-      .flash { animation: flash .9s ease-out; }
-      @keyframes flash { from { background: rgba(79,156,249,.22); } to { background: transparent; } }
-      .err { color: var(--err); }
-      .notice {
-        border: 1px solid var(--line); border-left: 3px solid var(--warn);
-        border-radius: 6px; padding: 10px 12px; margin-bottom: 14px;
-        font-size: 14px; color: var(--muted);
+      .elev-sm { box-shadow: var(--shadow-sm); }
+
+      .tag {
+        display: inline-flex; align-items: center; font-size: 11px; letter-spacing: 0.02em;
+        padding: 3px 10px; border-radius: 6px; white-space: nowrap;
       }
-      .notice strong { color: var(--text); }
-      code.copy {
-        display: inline-block; background: #0d0f14; border: 1px solid var(--line);
-        border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;
-        word-break: break-all;
+      .tag-accent { background: var(--color-accent-200); color: var(--color-accent-800); }
+      .tag-accent-2 { background: var(--color-accent-2-200); color: var(--color-accent-2-800); }
+      .tag-neutral { background: #e8ecec; color: #4a5c5a; }
+      .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+      .pill { white-space: nowrap; }
+
+      /* ── motion ── */
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+      @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+      @keyframes sweep { from { transform: translateX(-120%); } to { transform: translateX(320%); } }
+      [data-reveal] {
+        opacity: 0; transform: translateY(18px);
+        transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+                    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
       }
-      .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+      [data-reveal].in { opacity: 1; transform: none; }
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        [data-reveal] { opacity: 1; transform: none; transition: none; }
+        .live-dot, .sweep { animation: none !important; }
+      }
+
+      /* ── header ── */
+      header.site {
+        position: sticky; top: 0; z-index: 20;
+        backdrop-filter: blur(14px);
+        background: color-mix(in srgb, #fafafa 84%, transparent);
+        background-image: linear-gradient(to right, transparent, var(--color-divider) 48px,
+          var(--color-divider) calc(100% - 48px), transparent);
+        background-repeat: no-repeat; background-position: bottom; background-size: 100% 1px;
+      }
+      header.site .shell {
+        display: flex; align-items: center; gap: 26px; padding-block: 14px;
+      }
+      .brand {
+        display: flex; align-items: center; gap: 8px; font-size: 18px;
+        font-weight: 500; margin-right: auto; text-decoration: none;
+      }
+      .brand i { color: var(--color-accent); }
+      nav.site-nav { display: flex; gap: 26px; }
+      nav.site-nav a { font-size: 14px; color: var(--color-muted); text-decoration: none; }
+      nav.site-nav a:hover { color: var(--color-accent); }
+      header.site .btn { text-decoration: none; }
+      @media (max-width: 860px) { nav.site-nav { display: none; } }
+
+      /* ── section furniture ── */
+      section { scroll-margin-top: 72px; }
+      .kicker {
+        font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--color-accent); margin-bottom: 16px;
+      }
+      .lede { font-size: 15.5px; line-height: 28px; color: color-mix(in srgb, #17302e 78%, transparent); }
+      h2.section-title { font-size: clamp(28px, 3.2vw, 40px); line-height: 1.14; }
+
+      /* ── browser chrome mock ── */
+      .frame { border-radius: var(--radius-lg); background: var(--color-surface); overflow: hidden; }
+      .frame-bar {
+        display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+        background: var(--color-well); box-shadow: inset 0 -1px 0 var(--color-divider);
+      }
+      .frame-bar .dot { width: 9px; height: 9px; border-radius: 50%; background: #c9d6d5; }
+      .frame-url {
+        margin-left: 10px; font-size: 12px; color: var(--color-faint); font-family: var(--mono);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .live-dot {
+        width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent-500);
+        animation: pulse 1.8s ease-in-out infinite;
+      }
+
+      /* ── hero ── */
+      .hero {
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr);
+        gap: 56px clamp(32px, 5vw, 80px); align-items: center;
+        padding-block: 84px 72px;
+      }
+      .hero h1 {
+        font-size: clamp(40px, 5.4vw, 74px); line-height: 1.06;
+        letter-spacing: -0.02em; margin-left: -0.06em;
+      }
+      .hero h1 span { display: block; }
+      .eyebrow {
+        display: inline-flex; align-items: center; gap: 9px; font-size: 12px;
+        letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-accent);
+        border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+        border-radius: 999px; padding: 5px 13px; margin-bottom: 26px;
+      }
+      .hero-sub { font-size: 17px; line-height: 28px; max-width: 52ch; margin-top: 30px; color: var(--color-muted); }
+      .hero-cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
+      .hero-cta .btn { height: 44px; padding-inline: 20px; font-size: 15px; }
+      .proof { display: flex; align-items: center; gap: 14px; margin-top: 34px; flex-wrap: wrap; }
+      .proof-badge {
+        width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center;
+        background: var(--color-accent-100); color: var(--color-accent-700); font-size: 17px;
+      }
+      .proof-text { font-size: 13px; color: var(--color-faint); }
+      .proof-text strong { color: var(--color-text); font-weight: 500; }
+      .proof-text a { color: var(--color-accent); }
+      @media (max-width: 940px) { .hero { grid-template-columns: 1fr; padding-block: 56px 48px; } }
+
+      /* ── hero queue ── */
+      .queue-row {
+        display: grid; grid-template-columns: 30px 1fr auto auto; gap: 12px; align-items: center;
+        padding: 11px 12px; border-radius: var(--radius-md); background: var(--color-well);
+        transition: background 0.4s ease, box-shadow 0.4s ease;
+      }
+      .queue-row.active {
+        background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
+      }
+      .queue-pos { font-size: 15px; font-variant-numeric: tabular-nums; }
+      .queue-meta { font-size: 11px; color: var(--color-faint); }
+
+      /* ── grids ── */
+      .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+      .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      @media (max-width: 1000px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 640px) { .grid-4, .grid-3 { grid-template-columns: 1fr; } }
+
+      .icon-tile {
+        width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center;
+        background: #e4eeed; color: var(--color-accent-600); font-size: 18px;
+      }
+      .icon-ring {
+        width: 34px; height: 34px; border-radius: var(--radius-md); display: grid; place-items: center;
+        border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+        color: var(--color-accent); font-size: 17px;
+      }
+      .card-lift { padding: 18px; gap: 10px; transition: box-shadow 0.3s ease, transform 0.3s ease; }
+      .card-lift:hover { box-shadow: 0 0 0 1px var(--color-accent); }
+      .card-lift .title { font-size: 16px; }
+      .card-lift p { font-size: 13px; line-height: 22px; color: color-mix(in srgb, #17302e 70%, transparent); }
+
+      /* ── demo ── */
+      .demo-band {
+        background:
+          radial-gradient(900px 460px at 88% -60%,
+            color-mix(in srgb, var(--color-accent-200) 80%, transparent), transparent 66%),
+          var(--color-accent-100);
+        padding-block: 84px;
+      }
+      .demo-grid {
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+        gap: 48px clamp(32px, 5vw, 80px); align-items: center;
+      }
+      @media (max-width: 940px) { .demo-grid { grid-template-columns: 1fr; } }
+      .step-label {
+        font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--color-faint); margin-bottom: 10px;
+      }
+      .svc-row {
+        display: flex; align-items: center; gap: 12px; padding: 11px 13px;
+        border-radius: var(--radius-md); background: var(--color-well); cursor: pointer;
+        box-shadow: 0 0 0 1px transparent; transition: box-shadow 0.25s ease; width: 100%;
+        border: 0; font: inherit; color: inherit; text-align: left;
+      }
+      .svc-row:hover { box-shadow: 0 0 0 1px var(--color-accent); }
+      .svc-row[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--color-accent); }
+      .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 7px; }
+      .slot {
+        padding: 9px 0; font-size: 13px; font-variant-numeric: tabular-nums;
+        border: 1px solid var(--color-divider); background: transparent; color: var(--color-text);
+      }
+      .slot:hover:not(:disabled) { border-color: var(--color-accent); }
+      .slot[aria-pressed="true"] {
+        border-color: var(--color-accent);
+        background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+      }
+      .slot:disabled {
+        border-color: transparent; background: rgba(23, 48, 46, 0.04);
+        color: var(--color-ghost); cursor: not-allowed; opacity: 1;
+      }
+      .booked-note {
+        display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 13px 15px;
+        border-radius: var(--radius-md);
+        background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 60%, transparent);
+        animation: rise 0.4s ease-out;
+      }
+
+      /* ── steps ── */
+      .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
+      @media (max-width: 1000px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+      .step-mark { position: relative; height: 38px; margin-bottom: 18px; }
+      .step-line { position: absolute; top: 18px; left: 46px; right: -28px; height: 2px; border-radius: 2px; }
+      .step-dot {
+        position: absolute; top: 0; left: 0; width: 38px; height: 38px; border-radius: 50%;
+        display: grid; place-items: center; font-size: 14px; font-variant-numeric: tabular-nums;
+      }
+      .steps h3 { font-size: 19px; line-height: 1.24; margin-bottom: 8px; }
+      .steps p { font-size: 14px; line-height: 24px; color: color-mix(in srgb, #17302e 74%, transparent); }
+
+      /* ── verticals ── */
+      .verticals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+      @media (max-width: 900px) { .verticals { grid-template-columns: repeat(2, 1fr); } }
+      .vertical {
+        display: flex; align-items: center; gap: 11px; padding: 14px 16px;
+        border-radius: var(--radius-md); background: var(--color-surface); font-size: 14px;
+        transition: box-shadow 0.3s ease;
+      }
+      .vertical:hover { box-shadow: 0 0 0 1px var(--color-accent); }
+      .vertical i { color: var(--color-accent-600); font-size: 18px; }
+
+      /* ── dashboard ── */
+      .dash-grid {
+        display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+        gap: 44px clamp(32px, 5vw, 72px); align-items: center;
+      }
+      @media (max-width: 940px) { .dash-grid { grid-template-columns: 1fr; } }
+      .dash-body { display: grid; grid-template-columns: 92px 1fr; min-height: 300px; }
+      @media (max-width: 480px) { .dash-body { grid-template-columns: 1fr; } }
+      .dash-nav { padding: 14px 10px; background: #f4f7f6; display: flex; flex-direction: column; gap: 8px; }
+      .dash-nav div {
+        display: flex; align-items: center; gap: 7px; font-size: 11px;
+        padding: 7px 8px; border-radius: 6px; color: var(--color-faint);
+      }
+      .dash-nav div.on { background: color-mix(in srgb, var(--color-accent) 14%, transparent); color: var(--color-accent-800); }
+      .dash-stat { padding: 11px 12px; border-radius: var(--radius-md); background: var(--color-well); }
+      .dash-stat .k { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-faint); }
+      .dash-stat .v { font-size: 21px; font-variant-numeric: tabular-nums; margin-top: 3px; }
+      .dash-row {
+        display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center;
+        padding: 9px 11px; border-radius: 7px; background: var(--color-well); font-size: 12.5px;
+      }
+      .dash-row .t { color: var(--color-faint); font-variant-numeric: tabular-nums; }
+
+      /* ── faq ── */
+      .faq-item { border-radius: var(--radius-md); background: var(--color-surface); overflow: hidden; }
+      .faq-q {
+        width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+        padding: 15px 17px; font-size: 15px; text-align: left; background: transparent;
+        border: 0; cursor: pointer; font-family: var(--font); color: var(--color-text);
+      }
+      .faq-q:hover { background: rgba(23, 48, 46, 0.05); }
+      .faq-q i { color: var(--color-accent); font-size: 16px; transition: transform 0.25s ease; }
+      .faq-q[aria-expanded="true"] i { transform: rotate(45deg); }
+      .faq-a {
+        padding: 0 17px 17px; font-size: 14px; line-height: 25px; max-width: 68ch;
+        color: color-mix(in srgb, #17302e 76%, transparent); animation: rise 0.3s ease-out;
+      }
+
+      /* ── closing ── */
+      .closing {
+        position: relative; border-radius: var(--radius-lg); padding: 52px clamp(24px, 4vw, 56px);
+        background:
+          radial-gradient(700px 320px at 88% -30%,
+            color-mix(in srgb, var(--color-accent-200) 80%, transparent), transparent 66%),
+          var(--color-accent-100);
+        overflow: hidden;
+      }
+      .sweep {
+        position: absolute; top: 0; left: 0; width: 22%; height: 2px;
+        background: linear-gradient(to right, transparent, var(--color-accent-500), transparent);
+        animation: sweep 5.5s linear infinite;
+      }
+
+      footer.site {
+        display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+        padding-block: 26px 44px; font-size: 12px; color: var(--color-faint);
+        background: linear-gradient(to right, transparent, var(--color-divider) 48px,
+          var(--color-divider) calc(100% - 48px), transparent) no-repeat top / 100% 1px;
+      }
+      footer.site a { color: var(--color-accent); text-decoration: none; }
     </style>
   </head>
+
   <body>
-    <main>
-      <h1>Papan antrian</h1>
-      <p class="sub">
-        Antrian bergerak langsung lewat websocket <code>/queue</code> — tanpa polling, tanpa
-        refresh. Halaman ini memakai API publik yang sama dengan yang didokumentasikan di
-        <a href="/docs" style="color: var(--accent)">/docs</a>.
-      </p>
-
-      <div class="notice" id="wakeNotice" hidden>
-        <strong>Server sedang bangun.</strong> Hosting gratis menidurkan layanan setelah 15 menit
-        menganggur, jadi permintaan pertama butuh sekitar satu menit. Ini bukan error.
+    <header class="site">
+      <div class="shell">
+        <a class="brand" href="#top"><i class="ph ph-scissors"></i> MauApa?</a>
+        <nav class="site-nav">
+          <a href="#masalah">Masalah</a>
+          <a href="#fitur">Fitur</a>
+          <a href="#cara-kerja">Cara kerja</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+        <a href="/docs" class="btn btn-secondary">Dokumentasi API</a>
+        <a href="/board" class="btn btn-primary">Buka papan antrian</a>
       </div>
+    </header>
 
-      <section id="authPanel">
-        <div class="tabs" role="tablist">
-          <button id="tabLogin" role="tab" aria-selected="true">Masuk</button>
-          <button id="tabRegister" role="tab" aria-selected="false">Daftar baru</button>
+    <main id="top">
+      <!-- ── hero ─────────────────────────────────────────────────────── -->
+      <section class="shell hero">
+        <div>
+          <div class="eyebrow pill">
+            <span class="live-dot"></span>
+            Booking &amp; antrian untuk usaha jasa
+          </div>
+          <h1><span>Kelola booking</span><span>tanpa jadwal bentrok.</span></h1>
+          <p class="hero-sub">
+            Pelanggan memilih layanan, kapster, dan jam yang benar-benar kosong dari satu link.
+            Antrian bergerak sendiri di layar mereka — dan slot yang sama tidak pernah bisa
+            terisi dua kali.
+          </p>
+          <div class="hero-cta">
+            <a href="/board" class="btn btn-order">
+              Coba papan antrian <i class="ph ph-arrow-right"></i>
+            </a>
+            <button class="btn btn-secondary" id="toDemo">
+              <i class="ph ph-play-circle"></i> Lihat demo booking
+            </button>
+          </div>
+
+          <!-- Claims a visitor can check for themselves, rather than adoption
+               numbers this project does not have. -->
+          <div class="proof">
+            <span class="proof-badge"><i class="ph ph-check-square-offset"></i></span>
+            <div class="proof-text">
+              <div>
+                <strong>271 tes otomatis</strong> — termasuk dua permintaan bersamaan ke slot
+                yang sama.
+              </div>
+              <div style="margin-top: 2px">
+                Sumber terbuka ·
+                <a href="https://github.com/Adri178/mauapa-api">github.com/Adri178/mauapa-api</a>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="row">
-          <div>
-            <label for="email">Email</label>
-            <input id="email" type="email" placeholder="kamu@contoh.id" autocomplete="username" />
-          </div>
-          <div>
-            <label for="password">Password</label>
-            <input id="password" type="password" placeholder="minimal 8 karakter" autocomplete="current-password" />
-          </div>
-        </div>
-
-        <div class="row" id="registerFields" hidden>
-          <div>
-            <label for="name">Nama</label>
-            <input id="name" placeholder="Nama kamu" />
-          </div>
-          <div>
-            <label for="role">Daftar sebagai</label>
-            <select id="role">
-              <option value="OWNER">Pemilik usaha — bisa menyiapkan usaha contoh</option>
-              <option value="CUSTOMER">Pelanggan — menonton antrian usaha yang ada</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="row">
-          <div>
-            <label for="shopId">Shop ID <span style="opacity:.7">— kosongkan kalau kamu pemilik</span></label>
-            <input id="shopId" placeholder="uuid usaha yang mau ditonton" />
-          </div>
-          <div>
-            <label for="date">Tanggal</label>
-            <input id="date" type="date" />
+        <div data-reveal>
+          <div class="frame" style="box-shadow: var(--shadow-md)">
+            <div class="frame-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="frame-url">mauapa.id/budi/antrian</span>
+              <span class="pill" style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-faint)">
+                <span class="live-dot"></span> live
+              </span>
+            </div>
+            <div style="padding: 18px 20px 22px">
+              <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; gap: 12px">
+                <div>
+                  <div style="font-size: 17px">Barbershop Pak Budi</div>
+                  <div style="font-size: 12px; color: var(--color-faint)">
+                    <span id="heroClock">—</span> · Asia/Jakarta
+                  </div>
+                </div>
+                <button class="btn btn-primary" id="advanceHero" style="padding: 6px 12px; font-size: 13px">
+                  Naikkan status <i class="ph ph-arrow-right"></i>
+                </button>
+              </div>
+              <div id="heroQueue" style="display: flex; flex-direction: column; gap: 8px"></div>
+              <div id="heroEvent" style="margin-top: 14px; font-size: 11px; color: var(--color-faint); font-family: var(--mono)"></div>
+            </div>
           </div>
         </div>
-
-        <button id="go">Lanjut</button>
-        <span id="status">belum tersambung</span>
-        <p class="hint" id="authHint">
-          Belum punya akun? Pilih <strong>Daftar baru</strong> di atas. Registrasi dibatasi
-          5 kali per 10 menit per alamat IP.
-        </p>
       </section>
 
-      <section id="setupPanel" hidden>
-        <strong style="display:block; margin-bottom:6px">Kamu belum punya usaha</strong>
-        <p class="sub" style="margin-bottom:14px">
-          Papan antrian butuh usaha yang berisi layanan, kapster, jam buka, dan booking.
-          Tombol ini membuat semuanya lewat API publik — bukan jalan pintas ke database.
-        </p>
-        <button id="setup">Siapkan usaha contoh</button>
-        <div id="setupLog" class="hint"></div>
+      <!-- ── masalah ──────────────────────────────────────────────────── -->
+      <section id="masalah" class="shell" style="padding-block: 40px 90px">
+        <div data-reveal style="max-width: 46ch; margin-bottom: 40px">
+          <div class="kicker">Masalah yang umum terjadi</div>
+          <h2 class="section-title">Masih mengatur booking lewat chat?</h2>
+          <p class="lede" style="margin-top: 18px">
+            Empat hal ini terjadi di hampir semua barbershop yang kami temui — dan semuanya
+            berasal dari satu sumber: jadwal yang hidup di kepala orang, bukan di sistem.
+          </p>
+        </div>
+        <div class="grid-4" id="problems"></div>
       </section>
 
-      <section id="queuePanel" hidden>
-        <div class="row" style="align-items:center; justify-content:space-between; margin-bottom:14px">
-          <strong id="queueTitle">Antrian</strong>
-          <button class="ghost" id="disconnect">Keluar</button>
-        </div>
+      <!-- ── demo interaktif ──────────────────────────────────────────── -->
+      <section id="demo" class="demo-band">
+        <div class="shell demo-grid">
+          <div>
+            <div class="kicker" style="color: color-mix(in srgb, #17302e 70%, transparent)">
+              Satu link booking
+            </div>
+            <h2 class="section-title">Cobalah sendiri — ini halaman booking pelangganmu.</h2>
+            <p class="lede" style="margin-top: 20px; max-width: 46ch">
+              Pilih jenis usaha, layanan, lalu jam. Slot yang sudah terisi tidak bisa diklik —
+              dihitung dari jam buka dan durasi layanan, bukan daftar jam yang ditulis tangan.
+            </p>
+            <div id="bizTabs" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 26px"></div>
+          </div>
 
-        <div class="notice" style="border-left-color: var(--accent)">
-          Buka tautan ini di tab lain dan masuk sebagai <strong>pelanggan</strong> untuk melihat
-          tampilan yang berbeda — nama orang lain disembunyikan, dan hanya bookingmu yang ditandai.
-          Lalu ubah status di tab ini dan perhatikan tab sebelah ikut berubah tanpa refresh.
-          <br /><br />
-          <code class="copy" id="shareLink" title="klik untuk menyalin"></code>
-        </div>
+          <div class="frame" style="box-shadow: var(--shadow-lg)">
+            <div class="frame-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="frame-url">mauapa.id/<span id="bizSlug"></span></span>
+            </div>
+            <div style="padding: 20px 22px 24px">
+              <div style="font-size: 19px; margin-bottom: 2px" id="bizName"></div>
+              <div style="font-size: 12px; color: var(--color-faint); margin-bottom: 20px" id="bizMeta"></div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>#</th><th>Layanan</th><th>Kapster</th><th>Mulai</th>
-              <th>Status</th><th>Pelanggan</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="rows"></tbody>
-        </table>
-        <p id="empty" class="sub" hidden style="margin:12px 0 0">Belum ada booking pada tanggal ini.</p>
+              <div class="step-label">1 · Pilih layanan</div>
+              <div id="demoServices" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px"></div>
+
+              <div class="step-label">2 · Pilih jam</div>
+              <div class="slot-grid" id="demoSlots"></div>
+
+              <div id="demoResult"></div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section>
-        <strong style="display:block; margin-bottom:8px">Peristiwa</strong>
-        <div id="log">menunggu…</div>
+      <!-- ── fitur ────────────────────────────────────────────────────── -->
+      <section id="fitur" class="shell" style="padding-block: 90px 40px">
+        <div data-reveal style="max-width: 44ch; margin-bottom: 40px">
+          <div class="kicker">Fitur unggulan</div>
+          <h2 class="section-title">Semua yang dibutuhkan satu cabang.</h2>
+        </div>
+        <div class="grid-3" id="features"></div>
+      </section>
+
+      <!-- ── cara kerja ───────────────────────────────────────────────── -->
+      <section id="cara-kerja" class="shell" style="padding-block: 60px 70px">
+        <div data-reveal class="kicker" style="margin-bottom: 34px">Cara kerja · 4 langkah</div>
+        <div class="steps" id="steps"></div>
+      </section>
+
+      <!-- ── cocok untuk ──────────────────────────────────────────────── -->
+      <section class="shell" style="padding-block: 50px 80px">
+        <div data-reveal style="display: flex; align-items: baseline; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 26px">
+          <h2 style="font-size: clamp(24px, 2.6vw, 32px); line-height: 1.16">
+            Cocok untuk usaha yang menjual waktu.
+          </h2>
+          <span style="font-size: 13px; color: var(--color-faint)">
+            Satu cabang, banyak kapster, jadwal per hari
+          </span>
+        </div>
+        <div class="verticals" id="verticals"></div>
+      </section>
+
+      <!-- ── dasbor ───────────────────────────────────────────────────── -->
+      <section class="shell dash-grid" style="padding-bottom: 90px">
+        <div data-reveal class="frame" style="box-shadow: var(--shadow-md)">
+          <div class="frame-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="frame-url">mauapa.id/dasbor</span>
+          </div>
+          <div class="dash-body">
+            <div class="dash-nav" id="dashNav"></div>
+            <div style="padding: 16px 18px 20px">
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px" id="dashStats"></div>
+              <div style="display: flex; flex-direction: column; gap: 6px" id="dashRows"></div>
+            </div>
+          </div>
+        </div>
+        <div data-reveal>
+          <div class="kicker">Dasbor pemilik</div>
+          <h2 style="font-size: clamp(26px, 3vw, 38px); line-height: 1.14">
+            Satu papan untuk seluruh hari kerja.
+          </h2>
+          <p class="lede" style="margin-top: 20px; max-width: 44ch">
+            Siapa menunggu, siapa di kursi, berapa perkiraan omzet hari ini. Kapster bisa diberi
+            akun sendiri untuk menaikkan status jadwalnya, dan setiap perubahan langsung terlihat
+            di layar pelanggan.
+          </p>
+          <a href="/board" class="btn btn-primary" style="margin-top: 24px; height: 42px; padding-inline: 18px; text-decoration: none">
+            Buka papan antrian sungguhan <i class="ph ph-arrow-right"></i>
+          </a>
+        </div>
+      </section>
+
+      <!-- ── faq ──────────────────────────────────────────────────────── -->
+      <section id="faq" style="max-width: 900px; margin: 0 auto; padding: 0 var(--gutter) 90px">
+        <div data-reveal class="kicker">FAQ</div>
+        <h2 data-reveal style="font-size: clamp(26px, 3vw, 38px); line-height: 1.14; margin-bottom: 30px">
+          Pertanyaan yang sering diajukan
+        </h2>
+        <div style="display: flex; flex-direction: column; gap: 8px" id="faqs"></div>
+      </section>
+
+      <!-- ── penutup ──────────────────────────────────────────────────── -->
+      <section class="shell" style="padding-bottom: 96px">
+        <div data-reveal class="closing">
+          <span class="sweep"></span>
+          <h2 style="font-size: clamp(28px, 3.4vw, 44px); line-height: 1.12; max-width: 24ch">
+            Buka pendaftaran hari ini, tanpa menyentuh buku catatan.
+          </h2>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 28px">
+            <a href="/board" class="btn btn-order" style="height: 44px; padding-inline: 20px; font-size: 15px; text-decoration: none">
+              Buat usaha contoh
+            </a>
+            <span style="font-size: 13px; color: color-mix(in srgb, #17302e 70%, transparent)">
+              Tanpa kartu kredit · siap dipakai dalam 5 menit
+            </span>
+          </div>
+        </div>
       </section>
     </main>
 
-    <!-- Served by the Socket.IO server itself, so the page needs no CDN. -->
-    <script src="/socket.io/socket.io.js"></script>
+    <footer class="site shell">
+      <span>MauApa? · booking &amp; antrian untuk usaha jasa</span>
+      <span>
+        <a href="/docs">Dokumentasi API</a> ·
+        <a href="https://github.com/Adri178/mauapa-api">Kode sumber</a>
+      </span>
+    </footer>
+
     <script>
+      'use strict';
+
       const $ = (id) => document.getElementById(id);
-      const api = location.origin;
-      const SHOP_TZ = 'Asia/Jakarta';
-
-      let token = null;
-      let socket = null;
-      let role = null;
-      let shopId = null;
-      let watchedDate = null;
-      let mode = 'login';
-
-      const log = (message, isError = false) => {
-        const line = document.createElement('div');
-        line.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
-        if (isError) line.className = 'err';
-        if ($('log').textContent === 'menunggu…') $('log').textContent = '';
-        $('log').prepend(line);
-      };
-
-      const todayInShopZone = () =>
-        new Intl.DateTimeFormat('en-CA', {
-          timeZone: SHOP_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-        }).format(new Date());
-
-      $('date').value = todayInShopZone();
-
-      const fromUrl = new URLSearchParams(location.search).get('shop');
-      if (fromUrl) $('shopId').value = fromUrl;
-
-      /**
-       * Every call goes through here so the free tier's cold start has somewhere
-       * to announce itself: a request still running after three seconds is almost
-       * certainly a sleeping container, not a broken one.
-       */
-      async function call(path, options = {}) {
-        const slow = setTimeout(() => ($('wakeNotice').hidden = false), 3000);
-
-        try {
-          const res = await fetch(api + path, {
-            ...options,
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              ...(options.headers || {}),
-            },
-          });
-          const body = await res.json().catch(() => null);
-
-          if (!res.ok) {
-            const detail = body?.message?.join?.(', ') || res.statusText;
-            throw new Error(`${res.status} — ${detail}`);
-          }
-          return body;
-        } finally {
-          clearTimeout(slow);
-          $('wakeNotice').hidden = true;
-        }
-      }
-
-      // ── auth ────────────────────────────────────────────────────────────────
-      const setMode = (next) => {
-        mode = next;
-        $('tabLogin').setAttribute('aria-selected', String(next === 'login'));
-        $('tabRegister').setAttribute('aria-selected', String(next === 'register'));
-        $('registerFields').hidden = next !== 'register';
-        $('go').textContent = next === 'register' ? 'Daftar & lanjut' : 'Masuk & lanjut';
-        $('password').setAttribute('autocomplete', next === 'register' ? 'new-password' : 'current-password');
-      };
-
-      $('tabLogin').addEventListener('click', () => setMode('login'));
-      $('tabRegister').addEventListener('click', () => setMode('register'));
-      setMode('login');
-
-      $('go').addEventListener('click', async () => {
-        $('go').disabled = true;
-        $('status').textContent = 'menghubungi server…';
-
-        try {
-          const email = $('email').value.trim();
-          const password = $('password').value;
-          if (!email || !password) throw new Error('Email dan password wajib diisi');
-
-          const auth =
-            mode === 'register'
-              ? await call('/auth/register', {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    email, password,
-                    name: $('name').value.trim() || 'Pengguna',
-                    role: $('role').value,
-                  }),
-                })
-              : await call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-
-          token = auth.accessToken;
-          role = auth.user.role;
-          watchedDate = $('date').value;
-          log(`masuk sebagai ${auth.user.name} (${role})`);
-
-          shopId = $('shopId').value.trim();
-
-          // An owner need not know any ids: use their first shop, or offer to
-          // build one. Anyone else has to say which shop they are watching.
-          if (!shopId && role === 'OWNER') {
-            const shops = await call('/shops');
-            if (shops.length > 0) {
-              shopId = shops[0].id;
-              log(`memakai usaha "${shops[0].name}"`);
-            } else {
-              $('authPanel').hidden = true;
-              $('setupPanel').hidden = false;
-              $('status').textContent = 'siap menyiapkan usaha';
-              return;
-            }
-          }
-
-          if (!shopId) {
-            throw new Error(
-              'Isi Shop ID untuk menonton antrian sebuah usaha, atau daftar sebagai pemilik untuk membuat usaha contoh',
-            );
-          }
-
-          startWatching();
-        } catch (error) {
-          log(error.message, true);
-          $('status').textContent = 'gagal';
-          $('go').disabled = false;
-        }
-      });
-
-      // ── sample shop ─────────────────────────────────────────────────────────
-      $('setup').addEventListener('click', async () => {
-        $('setup').disabled = true;
-        const step = (message) => {
-          $('setupLog').textContent = message;
-          log(message);
-        };
-
-        try {
-          step('membuat usaha…');
-          const shop = await call('/shops', {
-            method: 'POST',
-            body: JSON.stringify({
-              name: 'Barbershop Contoh',
-              address: 'Jl. Melati No. 12, Bandung',
-              timezone: SHOP_TZ,
-            }),
-          });
-
-          step('menambah layanan…');
-          const service = await call(`/shops/${shop.id}/services`, {
-            method: 'POST',
-            body: JSON.stringify({ name: 'Potong Rambut', durationMinutes: 30, price: 35000 }),
-          });
-
-          step('menambah kapster…');
-          const staff = await call(`/shops/${shop.id}/staff`, {
-            method: 'POST',
-            body: JSON.stringify({ name: 'Andi' }),
-          });
-
-          step('menyetel jam buka…');
-          await call(`/shops/${shop.id}/working-hours`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              hours: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
-                dayOfWeek, open: '09:00', close: '21:00',
-              })),
-            }),
-          });
-
-          // Booked through /availability rather than invented, so the times are
-          // guaranteed to be slots the API would actually accept.
-          const availability = (on) =>
-            call(
-              `/shops/${shop.id}/availability?serviceId=${service.id}&staffId=${staff.id}&date=${on}`,
-            );
-
-          step('mencari slot kosong…');
-          let date = todayInShopZone();
-          let free = await availability(date);
-
-          if (free.slots.length === 0) {
-            // Past closing time: fall through to tomorrow.
-            date = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
-            free = await availability(date);
-          }
-
-          // Re-read availability between bookings rather than taking three from
-          // one list. Slots sit on a 15-minute grid while this service runs for
-          // 30, so consecutive entries overlap: booking 15:15 makes 15:30
-          // invalid, and the second request would be refused with a 409.
-          for (let made = 0; made < 3; made++) {
-            const slot = free.slots[0];
-            if (!slot) break;
-
-            step(`membuat booking ${made + 1}…`);
-            await call(`/shops/${shop.id}/bookings`, {
-              method: 'POST',
-              body: JSON.stringify({
-                serviceId: service.id, staffId: staff.id, startTime: slot.start,
-              }),
-            });
-
-            free = await availability(date);
-          }
-
-          shopId = shop.id;
-          watchedDate = date;
-          $('date').value = date;
-          $('setupPanel').hidden = true;
-          startWatching();
-        } catch (error) {
-          log(error.message, true);
-          $('setupLog').innerHTML = `<span class="err">${escape(error.message)}</span>`;
-          $('setup').disabled = false;
-        }
-      });
-
-      // ── live queue ──────────────────────────────────────────────────────────
-      function startWatching() {
-        $('authPanel').hidden = true;
-        $('queuePanel').hidden = false;
-        $('queueTitle').textContent = `Antrian — ${watchedDate}`;
-
-        const link = `${location.origin}${location.pathname}?shop=${shopId}`;
-        $('shareLink').textContent = link;
-        $('shareLink').onclick = () => {
-          void navigator.clipboard?.writeText(link);
-          log('tautan disalin');
-        };
-
-        socket = io(`${api}/queue`, { auth: { token }, transports: ['websocket'] });
-
-        socket.on('connect', () => {
-          $('status').textContent = 'tersambung';
-          log('websocket tersambung');
-          socket.emit('queue.watch', { shopId, date: watchedDate }, (reply) => {
-            log(reply?.error ? `watch ditolak: ${reply.error}` : `menonton ${reply.watching}`);
-          });
-        });
-
-        socket.on('connect_error', (error) => {
-          log(`websocket ditolak: ${error.message}`, true);
-          $('status').textContent = 'ditolak';
-        });
-
-        socket.on('queue.updated', (queue) => {
-          // Rooms are per shop, so an update for another date can arrive.
-          if (queue.date !== watchedDate) return;
-          log(`queue.updated — ${queue.entries.length} booking`);
-          render(queue);
-        });
-      }
-
-      $('disconnect').addEventListener('click', () => {
-        socket?.disconnect();
-        socket = null;
-        token = null;
-        $('queuePanel').hidden = true;
-        $('setupPanel').hidden = true;
-        $('authPanel').hidden = false;
-        $('status').textContent = 'keluar';
-        $('go').disabled = false;
-      });
-
-      const NEXT = { BOOKED: 'WAITING', WAITING: 'IN_PROGRESS', IN_PROGRESS: 'DONE' };
-
-      function render(queue) {
-        const body = $('rows');
-        body.innerHTML = '';
-        $('empty').hidden = queue.entries.length > 0;
-
-        for (const entry of queue.entries) {
-          const tr = document.createElement('tr');
-          if (entry.isYours) tr.className = 'mine';
-
-          const time = new Date(entry.startTime).toLocaleTimeString('id-ID', {
-            timeZone: SHOP_TZ, hour: '2-digit', minute: '2-digit',
-          });
-
-          tr.innerHTML = `
-            <td class="pos">${entry.position ?? '–'}</td>
-            <td>${escape(entry.serviceName)}</td>
-            <td>${escape(entry.staffName)}</td>
-            <td>${time}</td>
-            <td><span class="badge ${entry.status}">${entry.status}</span></td>
-            <td>${entry.customerName ? escape(entry.customerName) : '<span class="sub">—</span>'}</td>
-            <td></td>`;
-
-          const next = NEXT[entry.status];
-          if (next && (role === 'OWNER' || role === 'STAFF')) {
-            const button = document.createElement('button');
-            button.className = 'ghost';
-            button.textContent = `→ ${next}`;
-            button.onclick = async () => {
-              button.disabled = true;
-              try {
-                await call(`/shops/${shopId}/bookings/${entry.bookingId}/status`, {
-                  method: 'PATCH',
-                  body: JSON.stringify({ status: next }),
-                });
-                log(`status diubah ke ${next}`);
-              } catch (error) {
-                log(error.message, true);
-                button.disabled = false;
-              }
-            };
-            tr.lastElementChild.appendChild(button);
-          }
-
-          tr.classList.add('flash');
-          body.appendChild(tr);
-        }
-      }
-
-      const escape = (value) =>
-        String(value).replace(/[&<>"']/g, (c) =>
+      const esc = (v) =>
+        String(v).replace(/[&<>"']/g, (c) =>
           ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
         );
+      const rp = (n) => 'Rp ' + n.toLocaleString('id-ID');
+
+      /* ── data ─────────────────────────────────────────────────────────── */
+
+      const BIZ = [
+        {
+          label: 'Barbershop', icon: 'ph-scissors', slug: 'budi', name: 'Barbershop Pak Budi',
+          meta: 'Jl. Melati No. 12, Bandung · buka 09.00–20.00',
+          services: [
+            { name: 'Potong Rambut Pria', duration: 30, price: 35000, icon: 'ph-scissors' },
+            { name: 'Potong + Keramas', duration: 45, price: 50000, icon: 'ph-drop' },
+            { name: 'Cukur Jenggot', duration: 15, price: 20000, icon: 'ph-user-focus' },
+          ],
+          taken: ['09:30', '10:00', '11:00', '13:30'],
+        },
+        {
+          label: 'Salon', icon: 'ph-sparkle', slug: 'ayu-melati', name: 'Salon Ayu Melati',
+          meta: 'Jl. Cihampelas No. 88, Bandung · buka 10.00–21.00',
+          services: [
+            { name: 'Creambath', duration: 60, price: 90000, icon: 'ph-sparkle' },
+            { name: 'Hair Spa', duration: 45, price: 120000, icon: 'ph-drop' },
+            { name: 'Catok & Styling', duration: 30, price: 60000, icon: 'ph-wind' },
+          ],
+          taken: ['10:00', '10:30', '12:00'],
+        },
+        {
+          label: 'Klinik', icon: 'ph-first-aid-kit', slug: 'klinik-sehat', name: 'Klinik Sehat Bersama',
+          meta: 'Jl. Sukajadi No. 4, Bandung · buka 08.00–17.00',
+          services: [
+            { name: 'Konsultasi Umum', duration: 20, price: 75000, icon: 'ph-stethoscope' },
+            { name: 'Cek Laboratorium', duration: 30, price: 150000, icon: 'ph-test-tube' },
+            { name: 'Vaksinasi', duration: 15, price: 250000, icon: 'ph-syringe' },
+          ],
+          taken: ['09:00', '09:30', '11:30'],
+        },
+        {
+          label: 'Studio foto', icon: 'ph-camera', slug: 'studio-terang', name: 'Studio Terang',
+          meta: 'Jl. Braga No. 20, Bandung · buka 10.00–19.00',
+          services: [
+            { name: 'Sesi Potret 1 Jam', duration: 60, price: 350000, icon: 'ph-camera' },
+            { name: 'Foto Produk', duration: 45, price: 275000, icon: 'ph-package' },
+            { name: 'Pas Foto Kilat', duration: 15, price: 45000, icon: 'ph-identification-card' },
+          ],
+          taken: ['11:00', '14:00'],
+        },
+      ];
+
+      const SLOT_TIMES = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+                          '13:00', '13:30', '14:00', '14:30', '15:00', '15:30'];
+
+      const S_LABEL = { BOOKED: 'Dipesan', WAITING: 'Menunggu', IN_PROGRESS: 'Dikerjakan', DONE: 'Selesai' };
+      const S_CLASS = { BOOKED: 'tag-outline', WAITING: 'tag-accent-2', IN_PROGRESS: 'tag-accent', DONE: 'tag-neutral' };
+      const S_ICON  = { BOOKED: 'ph-clock', WAITING: 'ph-hourglass-medium', IN_PROGRESS: 'ph-scissors', DONE: 'ph-check' };
+
+      const HERO_BASE = [
+        { service: 'Potong Rambut Pria', staff: 'Andi', time: '09:00' },
+        { service: 'Potong + Keramas', staff: 'Andi', time: '10:00' },
+        { service: 'Creambath', staff: 'Cecep', time: '11:00' },
+        { service: 'Cukur Jenggot', staff: 'Andi', time: '11:30' },
+      ];
+
+      const PROBLEMS = [
+        { icon: 'ph-chat-circle-dots', title: 'Chat bolak-balik', copy: 'Waktu habis menjawab “jam berapa yang kosong?” satu per satu, sambil tangan sedang memegang gunting.' },
+        { icon: 'ph-warning-diamond', title: 'Jadwal bentrok', copy: 'Dua orang dijanjikan jam yang sama karena pesan dibaca terlambat. Salah satu harus dipulangkan.' },
+        { icon: 'ph-notebook', title: 'Catatan buku', copy: 'Antrian ditulis di buku atau spreadsheet — rentan hilang, sulit dilihat kapster lain.' },
+        { icon: 'ph-users', title: 'Pelanggan menunggu lama', copy: 'Tidak ada yang tahu posisi antrian, jadi semua datang lebih awal dan menumpuk di ruang tunggu.' },
+      ];
+
+      const FEATURES = [
+        { icon: 'ph-link-simple', title: 'Satu link booking', copy: 'Halaman booking milik usahamu sendiri, siap dibagikan di bio Instagram atau status WhatsApp. Pelanggan tidak perlu memasang apa pun.' },
+        { icon: 'ph-calendar-check', title: 'Slot yang benar', copy: 'Dihitung dari jam buka, durasi layanan, dan booking yang sudah ada. Hari tutup ditandai tutup, bukan kosong.' },
+        { icon: 'ph-shield-check', title: 'Anti double-booking', copy: 'Dua permintaan bersamaan ke kapster dan jam yang sama: satu berhasil, satu ditolak dengan sopan. Dijaga di level database.' },
+        { icon: 'ph-broadcast', title: 'Antrian real-time', copy: 'Status berubah di dasbor, layar pelanggan ikut berubah saat itu juga — tanpa refresh, tanpa polling.' },
+        { icon: 'ph-users-three', title: 'Multi kapster', copy: 'Setiap kapster punya jadwalnya sendiri dan boleh diberi akun untuk mengubah status pengerjaan.' },
+        { icon: 'ph-lock-key', title: 'Data terisolasi', copy: 'Usaha lain tidak bisa melihat atau menyentuh datamu — bahkan keberadaan id-nya tidak pernah bocor.' },
+      ];
+
+      const STEPS = [
+        { num: '01', title: 'Daftarkan usahamu', copy: 'Nama, alamat, dan zona waktu. Akun gratis, selesai dalam hitungan menit.' },
+        { num: '02', title: 'Atur layanan, kapster, jam buka', copy: 'Durasi dan harga per layanan, daftar kapster, dan satu jendela jam buka per hari — dasar perhitungan semua slot.' },
+        { num: '03', title: 'Bagikan link bookingmu', copy: 'Taruh di bio Instagram, status WhatsApp, atau Google Maps. Pelanggan langsung melihat jam yang benar-benar kosong.' },
+        { num: '04', title: 'Jalankan antrian dari satu papan', copy: 'Naikkan status dari menunggu ke dikerjakan ke selesai. Pelanggan melihat posisinya bergerak tanpa menanyakannya.' },
+      ];
+
+      const VERTICALS = [
+        { icon: 'ph-scissors', label: 'Barbershop' },
+        { icon: 'ph-sparkle', label: 'Salon & spa' },
+        { icon: 'ph-first-aid-kit', label: 'Klinik & praktik' },
+        { icon: 'ph-camera', label: 'Studio foto' },
+        { icon: 'ph-wrench', label: 'Bengkel' },
+        { icon: 'ph-washing-machine', label: 'Laundry' },
+        { icon: 'ph-barbell', label: 'Kelas & latihan' },
+        { icon: 'ph-briefcase', label: 'Konsultan' },
+      ];
+
+      const DASH_NAV = [
+        { icon: 'ph-squares-four', label: 'Papan', on: true },
+        { icon: 'ph-list-dashes', label: 'Layanan' },
+        { icon: 'ph-users-three', label: 'Kapster' },
+        { icon: 'ph-clock', label: 'Jam' },
+        { icon: 'ph-archive', label: 'Riwayat' },
+      ];
+      const DASH_STATS = [
+        { label: 'Booking', value: '12' },
+        { label: 'Menunggu', value: '3' },
+        { label: 'Omzet', value: '480rb' },
+      ];
+      const DASH_ROWS = [
+        { time: '09:00', text: 'Siti Rahayu · Potong Rambut', status: 'Selesai', cls: 'tag-neutral' },
+        { time: '10:00', text: 'Agus Wijaya · Potong + Keramas', status: 'Dikerjakan', cls: 'tag-accent' },
+        { time: '11:00', text: 'Dewi Lestari · Potong Rambut', status: 'Dipesan', cls: 'tag-outline' },
+        { time: '11:00', text: 'Rudi Hartono · Creambath', status: 'Menunggu', cls: 'tag-accent-2' },
+      ];
+
+      const FAQS = [
+        { q: 'Apa itu MauApa?', a: 'Sistem booking dan antrian untuk usaha jasa: pelanggan memesan layanan pada kapster dan jam tertentu lewat satu link, lalu memantau antriannya secara langsung. Pemilik mengelola layanan, kapster, jam buka, dan status pengerjaan dari satu dasbor.' },
+        { q: 'Bagaimana kalian mencegah jadwal bentrok?', a: 'Aturan “satu kapster tidak boleh punya dua booking yang waktunya tumpang tindih” dijaga langsung di database, bukan di kode aplikasi. Jadi meskipun dua pelanggan menekan tombol pada detik yang sama, hanya satu yang berhasil dan satu lagi diberi tahu untuk memilih slot lain.' },
+        { q: 'Apakah pelanggan perlu memasang aplikasi?', a: 'Tidak. Halaman booking dan papan antrian dibuka di browser lewat link yang bisa kamu taruh di bio Instagram, status WhatsApp, atau Google Maps.' },
+        { q: 'Kalau pelanggan membatalkan, slotnya bagaimana?', a: 'Booking yang dibatalkan langsung melepas slotnya sehingga bisa dipesan orang lain, dan nomor antrian dihitung ulang tanpa meninggalkan lubang.' },
+        { q: 'Apakah kapster bisa punya akun sendiri?', a: 'Bisa. Pemilik membuatkan akun kapster; kapster hanya melihat jadwalnya sendiri dan mengubah status pengerjaan. Data usaha lain tidak pernah terlihat.' },
+        { q: 'Ini produk jadi atau proyek portofolio?', a: 'Proyek portofolio dengan backend yang sungguhan: API-nya berjalan di URL publik, punya 271 tes otomatis, dan kodenya terbuka. Halaman ini memperagakan alurnya; papan antrian di /board bekerja terhadap API yang sama.' },
+      ];
+
+      /* ── state ────────────────────────────────────────────────────────── */
+
+      const state = { biz: 0, service: 0, slot: null, booked: false, faq: 0, heroStep: 0 };
+
+      /* ── hero ─────────────────────────────────────────────────────────── */
+
+      function renderHero() {
+        let pos = 0;
+        const rows = HERO_BASE.map((row, i) => {
+          const s =
+            i < state.heroStep ? 'DONE'
+            : i === state.heroStep ? 'IN_PROGRESS'
+            : i === state.heroStep + 1 ? 'WAITING'
+            : 'BOOKED';
+          const waiting = s === 'WAITING' || s === 'BOOKED';
+          if (waiting) pos += 1;
+
+          return `
+            <div class="queue-row${s === 'IN_PROGRESS' ? ' active' : ''}">
+              <span class="queue-pos" style="color: ${waiting ? 'var(--color-text)' : 'var(--color-ghost)'}">${waiting ? pos : '–'}</span>
+              <div style="min-width: 0">
+                <div style="font-size: 14px">${esc(row.service)}</div>
+                <div class="queue-meta">${esc(row.staff)} · ${esc(row.time)}</div>
+              </div>
+              <span class="tag ${S_CLASS[s]}">${S_LABEL[s]}</span>
+              <i class="ph ${S_ICON[s]}" style="font-size: 16px; color: ${s === 'IN_PROGRESS' ? 'var(--color-accent)' : 'var(--color-ghost)'}"></i>
+            </div>`;
+        });
+
+        $('heroQueue').innerHTML = rows.join('');
+        $('heroEvent').textContent =
+          `queue.updated · ${HERO_BASE.length} booking · broadcast ke semua penonton`;
+      }
+
+      /* ── demo booking ─────────────────────────────────────────────────── */
+
+      function renderDemo() {
+        const biz = BIZ[state.biz];
+        const svc = biz.services[Math.min(state.service, biz.services.length - 1)];
+
+        $('bizTabs').innerHTML = BIZ.map((b, i) => {
+          const on = i === state.biz;
+          return `<button class="btn" data-biz="${i}" style="font-size: 13px; padding: 7px 13px;
+            border: 1px solid ${on ? '#17302e' : 'color-mix(in srgb, #17302e 30%, transparent)'};
+            background: ${on ? 'color-mix(in srgb, #17302e 14%, transparent)' : 'transparent'};
+            color: ${on ? '#17302e' : 'color-mix(in srgb, #17302e 72%, transparent)'}">
+            <i class="ph ${b.icon}"></i> ${esc(b.label)}</button>`;
+        }).join('');
+
+        $('bizSlug').textContent = biz.slug;
+        $('bizName').textContent = biz.name;
+        $('bizMeta').textContent = biz.meta;
+
+        $('demoServices').innerHTML = biz.services.map((s, i) => `
+          <button class="svc-row" data-svc="${i}" aria-pressed="${i === state.service}">
+            <i class="ph ${s.icon}" style="color: var(--color-accent-600); font-size: 17px"></i>
+            <span style="flex: 1; font-size: 14px">${esc(s.name)}</span>
+            <span style="font-size: 12px; color: var(--color-faint)">${s.duration} mnt</span>
+            <span style="font-size: 14px; font-variant-numeric: tabular-nums">${rp(s.price)}</span>
+          </button>`).join('');
+
+        $('demoSlots').innerHTML = SLOT_TIMES.map((t) => {
+          const free = !biz.taken.includes(t);
+          return `<button class="btn slot" data-slot="${t}" ${free ? '' : 'disabled'}
+            aria-pressed="${state.slot === t}">${t}</button>`;
+        }).join('');
+
+        if (state.booked) {
+          $('demoResult').innerHTML = `
+            <div class="booked-note">
+              <i class="ph ph-check-circle" style="color: var(--color-accent); font-size: 20px"></i>
+              <div style="flex: 1">
+                <div style="font-size: 14px">Booking dikonfirmasi · ${esc(state.slot)} bersama ${esc(biz.label.toLowerCase())}</div>
+                <div style="font-size: 12px; color: var(--color-muted)">
+                  ${esc(svc.name)} · ${svc.duration} menit · ${rp(svc.price)} · posisi antrian #2
+                </div>
+              </div>
+              <button class="btn btn-ghost" id="resetDemo" style="font-size: 13px">Ulangi</button>
+            </div>`;
+        } else {
+          $('demoResult').innerHTML = `
+            <button class="btn btn-order btn-block" id="bookDemo" ${state.slot ? '' : 'disabled'}
+              style="height: 40px; margin-top: 20px">
+              ${state.slot ? 'Pesan ' + esc(svc.name) + ' · ' + esc(state.slot) : 'Pilih jam dulu'}
+            </button>`;
+        }
+      }
+
+      /* ── static sections ──────────────────────────────────────────────── */
+
+      function renderStatic() {
+        $('problems').innerHTML = PROBLEMS.map((p) => `
+          <div data-reveal class="card elev-sm card-lift">
+            <span class="icon-tile"><i class="ph ${p.icon}"></i></span>
+            <div class="title">${esc(p.title)}</div>
+            <p>${esc(p.copy)}</p>
+          </div>`).join('');
+
+        $('features').innerHTML = FEATURES.map((f) => `
+          <div data-reveal class="card elev-sm card-lift" style="padding: 20px">
+            <div style="display: flex; align-items: center; gap: 11px">
+              <span class="icon-ring"><i class="ph ${f.icon}"></i></span>
+              <div class="title">${esc(f.title)}</div>
+            </div>
+            <p style="font-size: 13.5px; line-height: 23px">${esc(f.copy)}</p>
+          </div>`).join('');
+
+        $('steps').innerHTML = STEPS.map((s, i, all) => `
+          <div data-reveal>
+            <div class="step-mark">
+              <span class="step-line" style="background: ${i === all.length - 1 ? 'transparent' : 'var(--color-accent-200)'}"></span>
+              <span class="step-dot" style="
+                background: ${i === 0 ? 'var(--color-accent)' : 'var(--color-accent-100)'};
+                color: ${i === 0 ? '#ffffff' : 'var(--color-accent-700)'};
+                box-shadow: ${i === 0 ? 'none' : 'inset 0 0 0 1.5px var(--color-accent-300)'}">${s.num}</span>
+            </div>
+            <h3>${esc(s.title)}</h3>
+            <p>${esc(s.copy)}</p>
+          </div>`).join('');
+
+        $('verticals').innerHTML = VERTICALS.map((v) => `
+          <div data-reveal class="vertical"><i class="ph ${v.icon}"></i>${esc(v.label)}</div>`).join('');
+
+        $('dashNav').innerHTML = DASH_NAV.map((d) => `
+          <div class="${d.on ? 'on' : ''}"><i class="ph ${d.icon}" style="font-size: 14px"></i>${esc(d.label)}</div>`).join('');
+
+        $('dashStats').innerHTML = DASH_STATS.map((k) => `
+          <div class="dash-stat"><div class="k">${esc(k.label)}</div><div class="v">${esc(k.value)}</div></div>`).join('');
+
+        $('dashRows').innerHTML = DASH_ROWS.map((r) => `
+          <div class="dash-row">
+            <span class="t">${esc(r.time)}</span>
+            <span>${esc(r.text)}</span>
+            <span class="tag ${r.cls}">${esc(r.status)}</span>
+          </div>`).join('');
+      }
+
+      function renderFaq() {
+        $('faqs').innerHTML = FAQS.map((f, i) => `
+          <div class="faq-item">
+            <button class="faq-q" data-faq="${i}" aria-expanded="${state.faq === i}">
+              <span>${esc(f.q)}</span><i class="ph ph-plus"></i>
+            </button>
+            ${state.faq === i ? `<p class="faq-a">${esc(f.a)}</p>` : ''}
+          </div>`).join('');
+      }
+
+      /* ── reveal on scroll ─────────────────────────────────────────────── */
+
+      let observer = null;
+      function observeReveals() {
+        const nodes = document.querySelectorAll('[data-reveal]:not(.in)');
+        if (!('IntersectionObserver' in window)) {
+          nodes.forEach((n) => n.classList.add('in'));
+          return;
+        }
+        observer ??= new IntersectionObserver(
+          (entries) => entries.forEach((e) => {
+            if (e.isIntersecting) { e.target.classList.add('in'); observer.unobserve(e.target); }
+          }),
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.08 },
+        );
+        nodes.forEach((n) => observer.observe(n));
+      }
+
+      /* ── wiring ───────────────────────────────────────────────────────── */
+
+      // One delegated listener rather than one per generated node, so re-rendering
+      // a section never leaves handlers behind.
+      document.addEventListener('click', (event) => {
+        const hit = (attr) => event.target.closest(`[${attr}]`);
+
+        const biz = hit('data-biz');
+        if (biz) {
+          Object.assign(state, { biz: Number(biz.dataset.biz), service: 0, slot: null, booked: false });
+          return renderDemo();
+        }
+
+        const svc = hit('data-svc');
+        if (svc) {
+          Object.assign(state, { service: Number(svc.dataset.svc), slot: null, booked: false });
+          return renderDemo();
+        }
+
+        const slot = hit('data-slot');
+        if (slot && !slot.disabled) {
+          Object.assign(state, { slot: slot.dataset.slot, booked: false });
+          return renderDemo();
+        }
+
+        if (event.target.closest('#bookDemo')) {
+          state.booked = true;
+          return renderDemo();
+        }
+        if (event.target.closest('#resetDemo')) {
+          Object.assign(state, { booked: false, slot: null });
+          return renderDemo();
+        }
+
+        const faq = hit('data-faq');
+        if (faq) {
+          const i = Number(faq.dataset.faq);
+          state.faq = state.faq === i ? -1 : i;
+          return renderFaq();
+        }
+      });
+
+      $('advanceHero').addEventListener('click', () => {
+        state.heroStep = (state.heroStep + 1) % 4;
+        renderHero();
+      });
+
+      $('toDemo').addEventListener('click', () => {
+        $('demo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
+      const tickClock = () => {
+        $('heroClock').textContent = new Date().toLocaleTimeString('id-ID', {
+          timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit',
+        });
+      };
+
+      renderStatic();
+      renderDemo();
+      renderFaq();
+      renderHero();
+      tickClock();
+      observeReveals();
+
+      setInterval(tickClock, 1000);
+      setInterval(() => { state.heroStep = (state.heroStep + 1) % 4; renderHero(); }, 3600);
+      // Sections render their cards after load, so newly inserted nodes need
+      // picking up once.
+      requestAnimationFrame(observeReveals);
     </script>
   </body>
 </html>

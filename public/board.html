@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MauApa? — papan antrian</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --line: #262b36;
+        --text: #e6e9ef;
+        --muted: #949cad;
+        --accent: #4f9cf9;
+        --ok: #3fb950;
+        --warn: #d29922;
+        --done: #6e7681;
+        --err: #f85149;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 24px;
+        background: var(--bg); color: var(--text);
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      }
+      main { max-width: 880px; margin: 0 auto; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      p.sub { color: var(--muted); margin: 0 0 20px; }
+      section {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: 10px; padding: 16px; margin-bottom: 16px;
+      }
+      label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+      input, button, select {
+        font: inherit; border-radius: 7px; border: 1px solid var(--line);
+        background: #0d0f14; color: var(--text); padding: 8px 10px;
+      }
+      input, select { width: 100%; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+      .row > div { flex: 1 1 200px; }
+      button {
+        background: var(--accent); color: #06101f; border: none;
+        font-weight: 600; cursor: pointer; padding: 9px 14px;
+      }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+      .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+      .tabs button { background: transparent; border: 1px solid var(--line); color: var(--muted); font-weight: 500; }
+      .tabs button[aria-selected="true"] { background: var(--accent); color: #06101f; border-color: var(--accent); font-weight: 600; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); }
+      th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+      td.pos { font-variant-numeric: tabular-nums; font-weight: 700; width: 48px; }
+      .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+      .BOOKED { color: var(--accent); }
+      .WAITING { color: var(--warn); }
+      .IN_PROGRESS { color: var(--ok); }
+      .DONE, .CANCELLED { color: var(--done); }
+      .mine { outline: 1px solid var(--accent); outline-offset: -1px; }
+      #status { font-size: 13px; color: var(--muted); }
+      #log { font: 12px/1.6 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; max-height: 150px; overflow: auto; }
+      .flash { animation: flash .9s ease-out; }
+      @keyframes flash { from { background: rgba(79,156,249,.22); } to { background: transparent; } }
+      .err { color: var(--err); }
+      .notice {
+        border: 1px solid var(--line); border-left: 3px solid var(--warn);
+        border-radius: 6px; padding: 10px 12px; margin-bottom: 14px;
+        font-size: 14px; color: var(--muted);
+      }
+      .notice strong { color: var(--text); }
+      code.copy {
+        display: inline-block; background: #0d0f14; border: 1px solid var(--line);
+        border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;
+        word-break: break-all;
+      }
+      .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Papan antrian</h1>
+      <p class="sub">
+        Antrian bergerak langsung lewat websocket <code>/queue</code> — tanpa polling, tanpa
+        refresh. Halaman ini memakai API publik yang sama dengan yang didokumentasikan di
+        <a href="/docs" style="color: var(--accent)">/docs</a>.
+      </p>
+
+      <div class="notice" id="wakeNotice" hidden>
+        <strong>Server sedang bangun.</strong> Hosting gratis menidurkan layanan setelah 15 menit
+        menganggur, jadi permintaan pertama butuh sekitar satu menit. Ini bukan error.
+      </div>
+
+      <section id="authPanel">
+        <div class="tabs" role="tablist">
+          <button id="tabLogin" role="tab" aria-selected="true">Masuk</button>
+          <button id="tabRegister" role="tab" aria-selected="false">Daftar baru</button>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" type="email" placeholder="kamu@contoh.id" autocomplete="username" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="minimal 8 karakter" autocomplete="current-password" />
+          </div>
+        </div>
+
+        <div class="row" id="registerFields" hidden>
+          <div>
+            <label for="name">Nama</label>
+            <input id="name" placeholder="Nama kamu" />
+          </div>
+          <div>
+            <label for="role">Daftar sebagai</label>
+            <select id="role">
+              <option value="OWNER">Pemilik usaha — bisa menyiapkan usaha contoh</option>
+              <option value="CUSTOMER">Pelanggan — menonton antrian usaha yang ada</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="shopId">Shop ID <span style="opacity:.7">— kosongkan kalau kamu pemilik</span></label>
+            <input id="shopId" placeholder="uuid usaha yang mau ditonton" />
+          </div>
+          <div>
+            <label for="date">Tanggal</label>
+            <input id="date" type="date" />
+          </div>
+        </div>
+
+        <button id="go">Lanjut</button>
+        <span id="status">belum tersambung</span>
+        <p class="hint" id="authHint">
+          Belum punya akun? Pilih <strong>Daftar baru</strong> di atas. Registrasi dibatasi
+          5 kali per 10 menit per alamat IP.
+        </p>
+      </section>
+
+      <section id="setupPanel" hidden>
+        <strong style="display:block; margin-bottom:6px">Kamu belum punya usaha</strong>
+        <p class="sub" style="margin-bottom:14px">
+          Papan antrian butuh usaha yang berisi layanan, kapster, jam buka, dan booking.
+          Tombol ini membuat semuanya lewat API publik — bukan jalan pintas ke database.
+        </p>
+        <button id="setup">Siapkan usaha contoh</button>
+        <div id="setupLog" class="hint"></div>
+      </section>
+
+      <section id="queuePanel" hidden>
+        <div class="row" style="align-items:center; justify-content:space-between; margin-bottom:14px">
+          <strong id="queueTitle">Antrian</strong>
+          <button class="ghost" id="disconnect">Keluar</button>
+        </div>
+
+        <div class="notice" style="border-left-color: var(--accent)">
+          Buka tautan ini di tab lain dan masuk sebagai <strong>pelanggan</strong> untuk melihat
+          tampilan yang berbeda — nama orang lain disembunyikan, dan hanya bookingmu yang ditandai.
+          Lalu ubah status di tab ini dan perhatikan tab sebelah ikut berubah tanpa refresh.
+          <br /><br />
+          <code class="copy" id="shareLink" title="klik untuk menyalin"></code>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Layanan</th><th>Kapster</th><th>Mulai</th>
+              <th>Status</th><th>Pelanggan</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p id="empty" class="sub" hidden style="margin:12px 0 0">Belum ada booking pada tanggal ini.</p>
+      </section>
+
+      <section>
+        <strong style="display:block; margin-bottom:8px">Peristiwa</strong>
+        <div id="log">menunggu…</div>
+      </section>
+    </main>
+
+    <!-- Served by the Socket.IO server itself, so the page needs no CDN. -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const api = location.origin;
+      const SHOP_TZ = 'Asia/Jakarta';
+
+      let token = null;
+      let socket = null;
+      let role = null;
+      let shopId = null;
+      let watchedDate = null;
+      let mode = 'login';
+
+      const log = (message, isError = false) => {
+        const line = document.createElement('div');
+        line.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
+        if (isError) line.className = 'err';
+        if ($('log').textContent === 'menunggu…') $('log').textContent = '';
+        $('log').prepend(line);
+      };
+
+      const todayInShopZone = () =>
+        new Intl.DateTimeFormat('en-CA', {
+          timeZone: SHOP_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+        }).format(new Date());
+
+      $('date').value = todayInShopZone();
+
+      const fromUrl = new URLSearchParams(location.search).get('shop');
+      if (fromUrl) $('shopId').value = fromUrl;
+
+      /**
+       * Every call goes through here so the free tier's cold start has somewhere
+       * to announce itself: a request still running after three seconds is almost
+       * certainly a sleeping container, not a broken one.
+       */
+      async function call(path, options = {}) {
+        const slow = setTimeout(() => ($('wakeNotice').hidden = false), 3000);
+
+        try {
+          const res = await fetch(api + path, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(options.headers || {}),
+            },
+          });
+          const body = await res.json().catch(() => null);
+
+          if (!res.ok) {
+            const detail = body?.message?.join?.(', ') || res.statusText;
+            throw new Error(`${res.status} — ${detail}`);
+          }
+          return body;
+        } finally {
+          clearTimeout(slow);
+          $('wakeNotice').hidden = true;
+        }
+      }
+
+      // ── auth ────────────────────────────────────────────────────────────────
+      const setMode = (next) => {
+        mode = next;
+        $('tabLogin').setAttribute('aria-selected', String(next === 'login'));
+        $('tabRegister').setAttribute('aria-selected', String(next === 'register'));
+        $('registerFields').hidden = next !== 'register';
+        $('go').textContent = next === 'register' ? 'Daftar & lanjut' : 'Masuk & lanjut';
+        $('password').setAttribute('autocomplete', next === 'register' ? 'new-password' : 'current-password');
+      };
+
+      $('tabLogin').addEventListener('click', () => setMode('login'));
+      $('tabRegister').addEventListener('click', () => setMode('register'));
+      setMode('login');
+
+      $('go').addEventListener('click', async () => {
+        $('go').disabled = true;
+        $('status').textContent = 'menghubungi server…';
+
+        try {
+          const email = $('email').value.trim();
+          const password = $('password').value;
+          if (!email || !password) throw new Error('Email dan password wajib diisi');
+
+          const auth =
+            mode === 'register'
+              ? await call('/auth/register', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    email, password,
+                    name: $('name').value.trim() || 'Pengguna',
+                    role: $('role').value,
+                  }),
+                })
+              : await call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+
+          token = auth.accessToken;
+          role = auth.user.role;
+          watchedDate = $('date').value;
+          log(`masuk sebagai ${auth.user.name} (${role})`);
+
+          shopId = $('shopId').value.trim();
+
+          // An owner need not know any ids: use their first shop, or offer to
+          // build one. Anyone else has to say which shop they are watching.
+          if (!shopId && role === 'OWNER') {
+            const shops = await call('/shops');
+            if (shops.length > 0) {
+              shopId = shops[0].id;
+              log(`memakai usaha "${shops[0].name}"`);
+            } else {
+              $('authPanel').hidden = true;
+              $('setupPanel').hidden = false;
+              $('status').textContent = 'siap menyiapkan usaha';
+              return;
+            }
+          }
+
+          if (!shopId) {
+            throw new Error(
+              'Isi Shop ID untuk menonton antrian sebuah usaha, atau daftar sebagai pemilik untuk membuat usaha contoh',
+            );
+          }
+
+          startWatching();
+        } catch (error) {
+          log(error.message, true);
+          $('status').textContent = 'gagal';
+          $('go').disabled = false;
+        }
+      });
+
+      // ── sample shop ─────────────────────────────────────────────────────────
+      $('setup').addEventListener('click', async () => {
+        $('setup').disabled = true;
+        const step = (message) => {
+          $('setupLog').textContent = message;
+          log(message);
+        };
+
+        try {
+          step('membuat usaha…');
+          const shop = await call('/shops', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: 'Barbershop Contoh',
+              address: 'Jl. Melati No. 12, Bandung',
+              timezone: SHOP_TZ,
+            }),
+          });
+
+          step('menambah layanan…');
+          const service = await call(`/shops/${shop.id}/services`, {
+            method: 'POST',
+            body: JSON.stringify({ name: 'Potong Rambut', durationMinutes: 30, price: 35000 }),
+          });
+
+          step('menambah kapster…');
+          const staff = await call(`/shops/${shop.id}/staff`, {
+            method: 'POST',
+            body: JSON.stringify({ name: 'Andi' }),
+          });
+
+          step('menyetel jam buka…');
+          await call(`/shops/${shop.id}/working-hours`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              hours: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+                dayOfWeek, open: '09:00', close: '21:00',
+              })),
+            }),
+          });
+
+          // Booked through /availability rather than invented, so the times are
+          // guaranteed to be slots the API would actually accept.
+          const availability = (on) =>
+            call(
+              `/shops/${shop.id}/availability?serviceId=${service.id}&staffId=${staff.id}&date=${on}`,
+            );
+
+          step('mencari slot kosong…');
+          let date = todayInShopZone();
+          let free = await availability(date);
+
+          if (free.slots.length === 0) {
+            // Past closing time: fall through to tomorrow.
+            date = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+            free = await availability(date);
+          }
+
+          // Re-read availability between bookings rather than taking three from
+          // one list. Slots sit on a 15-minute grid while this service runs for
+          // 30, so consecutive entries overlap: booking 15:15 makes 15:30
+          // invalid, and the second request would be refused with a 409.
+          for (let made = 0; made < 3; made++) {
+            const slot = free.slots[0];
+            if (!slot) break;
+
+            step(`membuat booking ${made + 1}…`);
+            await call(`/shops/${shop.id}/bookings`, {
+              method: 'POST',
+              body: JSON.stringify({
+                serviceId: service.id, staffId: staff.id, startTime: slot.start,
+              }),
+            });
+
+            free = await availability(date);
+          }
+
+          shopId = shop.id;
+          watchedDate = date;
+          $('date').value = date;
+          $('setupPanel').hidden = true;
+          startWatching();
+        } catch (error) {
+          log(error.message, true);
+          $('setupLog').innerHTML = `<span class="err">${escape(error.message)}</span>`;
+          $('setup').disabled = false;
+        }
+      });
+
+      // ── live queue ──────────────────────────────────────────────────────────
+      function startWatching() {
+        $('authPanel').hidden = true;
+        $('queuePanel').hidden = false;
+        $('queueTitle').textContent = `Antrian — ${watchedDate}`;
+
+        const link = `${location.origin}/board?shop=${shopId}`;
+        $('shareLink').textContent = link;
+        $('shareLink').onclick = () => {
+          void navigator.clipboard?.writeText(link);
+          log('tautan disalin');
+        };
+
+        socket = io(`${api}/queue`, { auth: { token }, transports: ['websocket'] });
+
+        socket.on('connect', () => {
+          $('status').textContent = 'tersambung';
+          log('websocket tersambung');
+          socket.emit('queue.watch', { shopId, date: watchedDate }, (reply) => {
+            log(reply?.error ? `watch ditolak: ${reply.error}` : `menonton ${reply.watching}`);
+          });
+        });
+
+        socket.on('connect_error', (error) => {
+          log(`websocket ditolak: ${error.message}`, true);
+          $('status').textContent = 'ditolak';
+        });
+
+        socket.on('queue.updated', (queue) => {
+          // Rooms are per shop, so an update for another date can arrive.
+          if (queue.date !== watchedDate) return;
+          log(`queue.updated — ${queue.entries.length} booking`);
+          render(queue);
+        });
+      }
+
+      $('disconnect').addEventListener('click', () => {
+        socket?.disconnect();
+        socket = null;
+        token = null;
+        $('queuePanel').hidden = true;
+        $('setupPanel').hidden = true;
+        $('authPanel').hidden = false;
+        $('status').textContent = 'keluar';
+        $('go').disabled = false;
+      });
+
+      const NEXT = { BOOKED: 'WAITING', WAITING: 'IN_PROGRESS', IN_PROGRESS: 'DONE' };
+
+      function render(queue) {
+        const body = $('rows');
+        body.innerHTML = '';
+        $('empty').hidden = queue.entries.length > 0;
+
+        for (const entry of queue.entries) {
+          const tr = document.createElement('tr');
+          if (entry.isYours) tr.className = 'mine';
+
+          const time = new Date(entry.startTime).toLocaleTimeString('id-ID', {
+            timeZone: SHOP_TZ, hour: '2-digit', minute: '2-digit',
+          });
+
+          tr.innerHTML = `
+            <td class="pos">${entry.position ?? '–'}</td>
+            <td>${escape(entry.serviceName)}</td>
+            <td>${escape(entry.staffName)}</td>
+            <td>${time}</td>
+            <td><span class="badge ${entry.status}">${entry.status}</span></td>
+            <td>${entry.customerName ? escape(entry.customerName) : '<span class="sub">—</span>'}</td>
+            <td></td>`;
+
+          const next = NEXT[entry.status];
+          if (next && (role === 'OWNER' || role === 'STAFF')) {
+            const button = document.createElement('button');
+            button.className = 'ghost';
+            button.textContent = `→ ${next}`;
+            button.onclick = async () => {
+              button.disabled = true;
+              try {
+                await call(`/shops/${shopId}/bookings/${entry.bookingId}/status`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({ status: next }),
+                });
+                log(`status diubah ke ${next}`);
+              } catch (error) {
+                log(error.message, true);
+                button.disabled = false;
+              }
+            };
+            tr.lastElementChild.appendChild(button);
+          }
+
+          tr.classList.add('flash');
+          body.appendChild(tr);
+        }
+      }
+
+      const escape = (value) =>
+        String(value).replace(/[&<>"']/g, (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+        );
+    </script>
+  </body>
+</html>
