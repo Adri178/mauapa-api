@@ -10,6 +10,24 @@ page for watching the queue move.
 **Stack** · NestJS · PostgreSQL + Prisma · Redis · JWT + RBAC · Socket.IO ·
 Swagger · Jest · Docker · GitHub Actions
 
+### Live
+
+| | |
+| --- | --- |
+| **Swagger** | **https://mauapa-api.onrender.com/docs** |
+| Queue board | https://mauapa-api.onrender.com/demo |
+| Health | https://mauapa-api.onrender.com/health |
+
+Registration is open, so the whole flow can be tried from Swagger in a couple of
+minutes: `POST /auth/register` as an `OWNER`, **Authorize** with the
+`accessToken`, then create a shop, a service, a staff member and some working
+hours, ask `/availability` what is free, and book it. Open `/demo` in two
+browser tabs to watch the queue move between them.
+
+> Hosted on a free tier that sleeps after 15 minutes of inactivity. The first
+> request after a quiet spell takes about a minute while the container wakes —
+> it is not broken, it is asleep.
+
 ---
 
 ## The problem
@@ -447,7 +465,8 @@ paid-but-frictionless option: add PostgreSQL and Redis to the project, and set
 `DATABASE_URL` to `${{Postgres.DATABASE_URL}}` and `REDIS_URL` to
 `${{Redis.REDIS_URL}}` so they follow the services rather than going stale.
 
-> **Public Swagger URL:** _not yet deployed._
+This project runs at **https://mauapa-api.onrender.com/docs** on exactly that
+arrangement: Render for the container, Neon for Postgres, Redis Cloud for Redis.
 
 ---
 
