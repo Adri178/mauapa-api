@@ -1,0 +1,13 @@
+# The repository is built inside Linux containers and in CI, so line endings are
+# normalised to LF everywhere rather than left to each machine's git config.
+#
+# This matters most for docker-entrypoint.sh: a CRLF shebang makes the kernel
+# look for an interpreter called "/bin/sh\r", and the container dies on boot
+# with a "no such file or directory" that names a file which plainly exists.
+* text=auto eol=lf
+
+*.sh text eol=lf
+Dockerfile text eol=lf
+
+# Keep diffs on generated lockfiles readable but out of the way.
+package-lock.json linguist-generated=true
