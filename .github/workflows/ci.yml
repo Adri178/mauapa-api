@@ -46,9 +46,9 @@ jobs:
       JWT_REFRESH_SECRET: ci-refresh-secret-that-is-long-enough-00000
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -78,15 +78,15 @@ jobs:
     name: Docker image builds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # Built but not pushed: the point is to catch a Dockerfile that stopped
       # working, which is exactly how the OpenSSL mismatch in this repo was
       # found — by running the image rather than reading it.
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
