@@ -27,7 +27,9 @@ export class AuthService {
         select: PROFILE_FIELDS,
       });
 
-      return { ...(await this.tokens.issuePair(user)), user };
+      // A brand-new account is never already a staff member: staff rows are
+      // created by an owner, and that path makes the user, not this one.
+      return { ...(await this.tokens.issuePair(user)), user: { ...user, staffId: null } };
     } catch (error) {
       // Checking first would leave a race between the check and the insert; the
       // unique index is the real guard, so translate its violation instead.
@@ -41,7 +43,13 @@ export class AuthService {
   async login(dto: LoginDto): Promise<AuthResultDto> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      select: { ...PROFILE_FIELDS, passwordHash: true },
+      select: {
+        ...PROFILE_FIELDS,
+        passwordHash: true,
+        // Resolved at login so a staff member lands on their own schedule
+        // without a second round trip to find out who they are.
+        staffProfile: { select: { id: true } },
+      },
     });
 
     const valid = user
@@ -52,8 +60,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const { passwordHash: _discard, ...profile } = user;
-    return { ...(await this.tokens.issuePair(profile)), user: profile };
+    const { passwordHash: _discard, staffProfile, ...profile } = user;
+    const withStaff = { ...profile, staffId: staffProfile?.id ?? null };
+
+    return { ...(await this.tokens.issuePair(profile)), user: withStaff };
   }
 
   refresh(refreshToken: string): Promise<TokenPair> {
@@ -67,13 +77,15 @@ export class AuthService {
   async profile(userId: string): Promise<UserProfileDto> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: PROFILE_FIELDS,
+      select: { ...PROFILE_FIELDS, staffProfile: { select: { id: true } } },
     });
 
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
     }
 
-    return user;
+    const { staffProfile, ...profile } = user;
+
+    return { ...profile, staffId: staffProfile?.id ?? null };
   }
 }

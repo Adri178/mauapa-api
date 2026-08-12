@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { QueueGateway } from '../queue/queue.gateway';
 import { QueueService } from '../queue/queue.service';
 import { ShopsService } from '../shops/shops.service';
+import type { MyBookingDto } from './dto/booking-response.dto';
 import type { CreateBookingDto } from './dto/create-booking.dto';
 import type { ListBookingsQueryDto, ListMyBookingsQueryDto } from './dto/list-bookings.dto';
 import { isDeadlock, isOverlapViolation } from './overlap-violation';
@@ -217,20 +218,37 @@ export class BookingsService {
   async listForCustomer(
     customerId: string,
     query: ListMyBookingsQueryDto,
-  ): Promise<PageDto<Booking>> {
+  ): Promise<PageDto<MyBookingDto>> {
     const where = { customerId, ...(query.status ? { status: query.status } : {}) };
 
     // One round trip for the rows and one for the count, issued together — the
     // total is what tells a client whether another page exists.
-    const [data, total] = await this.prisma.$transaction([
+    const [rows, total] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
         where,
         orderBy: { startTime: query.order },
         skip: query.skip,
         take: query.limit,
+        // Joined here rather than left to the client: rendering one row would
+        // otherwise take three more requests.
+        include: {
+          shop: { select: { name: true, timezone: true } },
+          service: { select: { name: true, durationMinutes: true, price: true } },
+          staff: { select: { name: true } },
+        },
       }),
       this.prisma.booking.count({ where }),
     ]);
+
+    const data = rows.map(({ shop, service, staff, ...booking }) => ({
+      ...booking,
+      shopName: shop.name,
+      shopTimezone: shop.timezone,
+      serviceName: service.name,
+      durationMinutes: service.durationMinutes,
+      price: service.price,
+      staffName: staff.name,
+    }));
 
     return paginate(data, total, query);
   }

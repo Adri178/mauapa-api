@@ -15,7 +15,11 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BookingsService } from './bookings.service';
 import { BOOKING_THROTTLE } from '../throttling/throttling.constants';
-import { BookingResponseDto, PaginatedBookingsDto } from './dto/booking-response.dto';
+import {
+  BookingResponseDto,
+  PaginatedBookingsDto,
+  PaginatedMyBookingsDto,
+} from './dto/booking-response.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { ListBookingsQueryDto, ListMyBookingsQueryDto } from './dto/list-bookings.dto';
 import { UpdateBookingStatusDto } from './dto/update-status.dto';
@@ -88,11 +92,11 @@ export class MyBookingsController {
 
   @Get('me')
   @ApiOperation({ summary: "The caller's own bookings, newest first" })
-  @ApiOkResponse({ type: PaginatedBookingsDto })
+  @ApiOkResponse({ type: PaginatedMyBookingsDto })
   listMine(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListMyBookingsQueryDto,
-  ): Promise<PaginatedBookingsDto> {
+  ): Promise<PaginatedMyBookingsDto> {
     return this.bookings.listForCustomer(user.id, query);
   }
 

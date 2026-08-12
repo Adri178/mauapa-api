@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 
 export class UserProfileDto {
@@ -13,6 +13,15 @@ export class UserProfileDto {
 
   @ApiProperty({ enum: Role })
   role!: Role;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Which staff row this login is, for STAFF users. Null for everyone else. ' +
+      'Without it a staff member cannot filter a shop’s day down to their own.',
+  })
+  staffId!: string | null;
 }
 
 export class AuthTokensDto {

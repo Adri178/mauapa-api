@@ -211,6 +211,9 @@ describe('Auth (e2e)', () => {
         email: emailFor('me'),
         name: 'Test User',
         role: Role.CUSTOMER,
+        // Null for anyone who is not staff; a staff member gets their staff row
+        // id here so they can filter a shop's day down to their own schedule.
+        staffId: null,
       });
     });
   });
